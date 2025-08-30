@@ -1,0 +1,656 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  Grid,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
+  TextField,
+  Typography,
+  Chip,
+  Alert,
+  Divider,
+  Switch,
+  FormControlLabel,
+  FormGroup,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+} from '@mui/material';
+import {
+  Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
+  ContentCopy as ContentCopyIcon,
+  AddCircle as AddCircleIcon,
+} from '@mui/icons-material';
+import { useData } from '../context/DataContext';
+
+function ShiftCreationTab() {
+  const { shifts, roles, tours, dispatch } = useData();
+  const [openDialog, setOpenDialog] = useState(false);
+  const [editingShift, setEditingShift] = useState(null);
+  const [bulkMode, setBulkMode] = useState(false);
+  const shiftNameInputRef = useRef(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    requiredRoles: [],
+    tours: [],
+  });
+  
+  // Bulk creation state
+  const [bulkData, setBulkData] = useState({
+    baseName: '',
+    count: 1,
+    startNumber: 1,
+    suffix: '',
+    description: '',
+    requiredRoles: [],
+    tours: [],
+  });
+  
+  const [bulkShifts, setBulkShifts] = useState([]);
+
+  const handleOpenDialog = (shift = null) => {
+    if (shift) {
+      setEditingShift(shift);
+      setFormData({
+        name: shift.name,
+        description: shift.description || '',
+        requiredRoles: shift.requiredRoles || [],
+        tours: shift.tours || [],
+      });
+    } else {
+      setEditingShift(null);
+      setFormData({
+        name: '',
+        description: '',
+        requiredRoles: [],
+        tours: [],
+      });
+    }
+    setOpenDialog(true);
+  };
+
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
+    setEditingShift(null);
+    setFormData({
+      name: '',
+      description: '',
+      requiredRoles: [],
+      tours: [],
+    });
+  };
+
+  const handleSubmit = () => {
+    if (!formData.name.trim() || formData.requiredRoles.length === 0) return;
+
+    const shiftData = {
+      id: editingShift?.id || Date.now().toString(),
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      requiredRoles: formData.requiredRoles,
+      tours: formData.tours,
+    };
+
+    if (editingShift) {
+      dispatch({ type: 'UPDATE_SHIFT', payload: shiftData });
+    } else {
+      dispatch({ type: 'ADD_SHIFT', payload: shiftData });
+    }
+
+    handleCloseDialog();
+  };
+
+  const handleDeleteShift = (shiftId) => {
+    if (window.confirm('Are you sure you want to delete this shift? This will affect all schedules using this shift.')) {
+      dispatch({ type: 'DELETE_SHIFT', payload: shiftId });
+    }
+  };
+
+  // Auto-focus on shift name input when dialog opens
+  useEffect(() => {
+    if (openDialog && shiftNameInputRef.current) {
+      shiftNameInputRef.current.focus();
+    }
+  }, [openDialog]);
+
+  // Handle Enter key press
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSubmit();
+    }
+  };
+
+  // Bulk creation functions
+  const generateBulkShifts = () => {
+    const shifts = [];
+    for (let i = 0; i < bulkData.count; i++) {
+      const number = bulkData.startNumber + i;
+      const name = `${bulkData.baseName} ${number}${bulkData.suffix}`;
+      shifts.push({
+        id: `bulk-${Date.now()}-${i}`,
+        name: name.trim(),
+        description: bulkData.description,
+        requiredRoles: [...bulkData.requiredRoles],
+        tours: [...bulkData.tours],
+      });
+    }
+    setBulkShifts(shifts);
+  };
+
+  const handleBulkSubmit = () => {
+    if (!bulkData.baseName.trim() || bulkData.requiredRoles.length === 0) return;
+    
+    // Generate shifts if not already generated
+    if (bulkShifts.length === 0) {
+      generateBulkShifts();
+      return;
+    }
+
+    // Add all generated shifts
+    bulkShifts.forEach(shift => {
+      const shiftData = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        name: shift.name,
+        description: shift.description,
+        requiredRoles: shift.requiredRoles,
+        tours: shift.tours,
+      };
+      dispatch({ type: 'ADD_SHIFT', payload: shiftData });
+    });
+
+    // Reset and close
+    setBulkShifts([]);
+    setBulkData({
+      baseName: '',
+      count: 1,
+      startNumber: 1,
+      suffix: '',
+      description: '',
+      requiredRoles: [],
+      tours: [],
+    });
+    setBulkMode(false);
+    setOpenDialog(false);
+  };
+
+  const handleBulkRoleChange = (event) => {
+    const { value } = event.target;
+    setBulkData(prev => ({
+      ...prev,
+      requiredRoles: Array.isArray(value) ? value : [value],
+    }));
+  };
+
+  const handleBulkTourChange = (event) => {
+    const { value } = event.target;
+    setBulkData(prev => ({
+      ...prev,
+      tours: Array.isArray(value) ? value : [value],
+    }));
+  };
+
+  const handleCopyShift = (shift) => {
+    setFormData({
+      name: shift.name,
+      description: shift.description || '',
+      requiredRoles: [...shift.requiredRoles],
+      tours: [...shift.tours],
+    });
+    setBulkMode(false);
+    setEditingShift(null);
+  };
+
+  const handleRoleChange = (event) => {
+    const { value } = event.target;
+    setFormData(prev => ({
+      ...prev,
+      requiredRoles: Array.isArray(value) ? value : [value],
+    }));
+  };
+
+  const handleTourChange = (event) => {
+    const { value } = event.target;
+    setFormData(prev => ({
+      ...prev,
+      tours: Array.isArray(value) ? value : [value],
+    }));
+  };
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h4">Shift Management</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {shifts.length} shift{shifts.length !== 1 ? 's' : ''} created
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => handleOpenDialog()}
+        >
+          Add Shift
+        </Button>
+      </Box>
+
+      <Grid container spacing={3}>
+        {shifts.map((shift) => (
+          <Grid item xs={12} md={6} lg={4} key={shift.id}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Typography variant="h6" component="div">
+                    {shift.name}
+                  </Typography>
+                  <Box>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleCopyShift(shift)}
+                      title="Copy Shift"
+                    >
+                      <ContentCopyIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenDialog(shift)}
+                      title="Edit Shift"
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => handleDeleteShift(shift.id)}
+                      title="Delete Shift"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Box>
+                </Box>
+
+                {shift.description && (
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    {shift.description}
+                  </Typography>
+                )}
+
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" gutterBottom>
+                    <strong>Required Roles:</strong>
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {shift.requiredRoles.map(roleId => {
+                      const role = roles.find(r => r.id === roleId);
+                      return role ? (
+                        <Chip
+                          key={roleId}
+                          label={role.name}
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                        />
+                      ) : null;
+                    })}
+                  </Box>
+                </Box>
+
+                {shift.tours && shift.tours.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Attached Tours:</strong>
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {shift.tours.map(tourId => {
+                        const tour = tours.find(t => t.id === tourId);
+                        return tour ? (
+                          <Chip
+                            key={tourId}
+                            label={tour.name}
+                            size="small"
+                            color="secondary"
+                            variant="outlined"
+                          />
+                        ) : null;
+                      })}
+                    </Box>
+                  </Box>
+                )}
+
+                <Box sx={{ mt: 2 }}>
+                  <Chip
+                    label={`${shift.requiredRoles.length} role${shift.requiredRoles.length !== 1 ? 's' : ''} required`}
+                    size="small"
+                    variant="outlined"
+                    color="secondary"
+                  />
+                  {shift.tours && shift.tours.length > 0 && (
+                    <Chip
+                      label={`${shift.tours.length} tour${shift.tours.length !== 1 ? 's' : ''} attached`}
+                      size="small"
+                      variant="outlined"
+                      color="secondary"
+                      sx={{ ml: 1 }}
+                    />
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {shifts.length === 0 && (
+        <Box sx={{ textAlign: 'center', mt: 4 }}>
+          <Typography variant="h6" color="text.secondary">
+            No shifts created yet
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Create your first shift template to get started
+          </Typography>
+        </Box>
+      )}
+
+            <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">
+              {editingShift ? 'Edit Shift' : 'Add New Shift'}
+            </Typography>
+            {!editingShift && (
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={bulkMode}
+                    onChange={(e) => setBulkMode(e.target.checked)}
+                  />
+                }
+                label="Bulk Mode"
+              />
+            )}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {!bulkMode ? (
+            // Single shift creation
+            <Box sx={{ pt: 1 }}>
+              <TextField
+                fullWidth
+                label="Shift Name *"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onKeyPress={handleKeyPress}
+                inputRef={shiftNameInputRef}
+                margin="normal"
+                required
+              />
+              <TextField
+                fullWidth
+                label="Description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                margin="normal"
+                multiline
+                rows={3}
+              />
+              <FormControl fullWidth margin="normal" required>
+                <InputLabel>Required Roles *</InputLabel>
+                <Select
+                  multiple
+                  value={formData.requiredRoles}
+                  onChange={handleRoleChange}
+                  label="Required Roles *"
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => {
+                        const role = roles.find(r => r.id === value);
+                        return role ? (
+                          <Chip key={value} label={role.name} size="small" />
+                        ) : null;
+                      })}
+                    </Box>
+                  )}
+                >
+                  {roles.map((role) => (
+                    <MenuItem key={role.id} value={role.id}>
+                      {role.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Attach Tours (Optional)</InputLabel>
+                <Select
+                  multiple
+                  value={formData.tours}
+                  onChange={handleTourChange}
+                  label="Attach Tours (Optional)"
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => {
+                        const tour = tours.find(t => t.id === value);
+                        return tour ? (
+                          <Chip key={value} label={tour.name} size="small" color="secondary" />
+                        ) : null;
+                      })}
+                    </Box>
+                  )}
+                >
+                  {tours.map((tour) => (
+                    <MenuItem key={tour.id} value={tour.id}>
+                      {tour.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {formData.requiredRoles.length === 0 && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  Please select at least one required role for this shift.
+                </Alert>
+              )}
+            </Box>
+          ) : (
+            // Bulk shift creation
+            <Box sx={{ pt: 1 }}>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  <strong>Example:</strong> Base Name: "Tree Tops", Count: 3, Start Number: 1, Suffix: "Ground Support" 
+                  will create: Tree Tops 1 Ground Support, Tree Tops 2 Ground Support, Tree Tops 3 Ground Support
+                </Typography>
+              </Alert>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Base Name *"
+                    value={bulkData.baseName}
+                    onChange={(e) => setBulkData({ ...bulkData, baseName: e.target.value })}
+                    placeholder="e.g., Tree Tops, Ground Support"
+                    margin="normal"
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Count"
+                    type="number"
+                    value={bulkData.count}
+                    onChange={(e) => setBulkData({ ...bulkData, count: parseInt(e.target.value) || 1 })}
+                    margin="normal"
+                    inputProps={{ min: 1, max: 20 }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Start Number"
+                    type="number"
+                    value={bulkData.startNumber}
+                    onChange={(e) => setBulkData({ ...bulkData, startNumber: parseInt(e.target.value) || 1 })}
+                    margin="normal"
+                    inputProps={{ min: 1 }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Suffix (Optional)"
+                    value={bulkData.suffix}
+                    onChange={(e) => setBulkData({ ...bulkData, suffix: e.target.value })}
+                    placeholder="e.g., Ground Support, Morning, etc."
+                    margin="normal"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Description"
+                    value={bulkData.description}
+                    onChange={(e) => setBulkData({ ...bulkData, description: e.target.value })}
+                    margin="normal"
+                    multiline
+                    rows={2}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth margin="normal" required>
+                    <InputLabel>Required Roles *</InputLabel>
+                    <Select
+                      multiple
+                      value={bulkData.requiredRoles}
+                      onChange={handleBulkRoleChange}
+                      label="Required Roles *"
+                      renderValue={(selected) => (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {selected.map((value) => {
+                            const role = roles.find(r => r.id === value);
+                            return role ? (
+                              <Chip key={value} label={role.name} size="small" />
+                            ) : null;
+                          })}
+                        </Box>
+                      )}
+                    >
+                      {roles.map((role) => (
+                        <MenuItem key={role.id} value={role.id}>
+                          {role.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth margin="normal">
+                    <InputLabel>Attach Tours (Optional)</InputLabel>
+                    <Select
+                      multiple
+                      value={bulkData.tours}
+                      onChange={handleBulkTourChange}
+                      label="Attach Tours (Optional)"
+                      renderValue={(selected) => (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {selected.map((value) => {
+                            const tour = tours.find(t => t.id === value);
+                            return tour ? (
+                              <Chip key={value} label={tour.name} size="small" color="secondary" />
+                            ) : null;
+                          })}
+                        </Box>
+                      )}
+                    >
+                      {tours.map((tour) => (
+                        <MenuItem key={tour.id} value={tour.id}>
+                          {tour.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+
+              {bulkData.baseName.trim() && bulkData.requiredRoles.length > 0 && (
+                <Box sx={{ mt: 3 }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AddCircleIcon />}
+                    onClick={generateBulkShifts}
+                    fullWidth
+                  >
+                    Preview Shifts
+                  </Button>
+                </Box>
+              )}
+
+              {bulkShifts.length > 0 && (
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Preview ({bulkShifts.length} shifts):
+                  </Typography>
+                  <List dense>
+                    {bulkShifts.map((shift, index) => (
+                      <ListItem key={shift.id} divider>
+                        <ListItemText
+                          primary={shift.name}
+                          secondary={`${shift.requiredRoles.length} role(s) required`}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+
+              {bulkData.requiredRoles.length === 0 && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  Please select at least one required role for these shifts.
+                </Alert>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog}>Cancel</Button>
+          {!bulkMode ? (
+            <Button 
+              onClick={handleSubmit} 
+              variant="contained"
+              disabled={!formData.name.trim() || formData.requiredRoles.length === 0}
+            >
+              {editingShift ? 'Update' : 'Add'}
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleBulkSubmit} 
+              variant="contained"
+              disabled={!bulkData.baseName.trim() || bulkData.requiredRoles.length === 0}
+            >
+              {bulkShifts.length === 0 ? 'Preview Shifts' : `Create ${bulkShifts.length} Shifts`}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
+
+export default ShiftCreationTab;
