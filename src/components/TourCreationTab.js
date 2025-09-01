@@ -20,6 +20,7 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
+import { tourHelpers } from '../lib/supabaseHelpers';
 
 function TourCreationTab() {
   const { tours, dispatch } = useData();
@@ -53,26 +54,38 @@ function TourCreationTab() {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name.trim()) return;
 
-    const tourData = {
-      id: editingTour?.id || Date.now().toString(),
-      name: formData.name.trim(),
-    };
+    try {
+      const tourData = {
+        name: formData.name.trim(),
+      };
 
-    if (editingTour) {
-      dispatch({ type: 'UPDATE_TOUR', payload: tourData });
-    } else {
-      dispatch({ type: 'ADD_TOUR', payload: tourData });
+      if (editingTour) {
+        const updatedTour = await tourHelpers.update(editingTour.id, tourData);
+        dispatch({ type: 'UPDATE_TOUR', payload: updatedTour });
+      } else {
+        const newTour = await tourHelpers.add(tourData);
+        dispatch({ type: 'ADD_TOUR', payload: newTour });
+      }
+
+      handleCloseDialog();
+    } catch (error) {
+      console.error('Error saving tour:', error);
+      alert(`Error saving tour: ${error.message}. Please try again.`);
     }
-
-    handleCloseDialog();
   };
 
-  const handleDeleteTour = (tourId) => {
+  const handleDeleteTour = async (tourId) => {
     if (window.confirm('Are you sure you want to delete this tour? This will affect all shifts using this tour.')) {
-      dispatch({ type: 'DELETE_TOUR', payload: tourId });
+      try {
+        await tourHelpers.delete(tourId);
+        dispatch({ type: 'DELETE_TOUR', payload: tourId });
+      } catch (error) {
+        console.error('Error deleting tour:', error);
+        alert(`Error deleting tour: ${error.message}. Please try again.`);
+      }
     }
   };
 

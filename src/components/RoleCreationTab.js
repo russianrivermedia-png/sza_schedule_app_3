@@ -20,6 +20,7 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
+import { roleHelpers } from '../lib/supabaseHelpers';
 
 function RoleCreationTab() {
   const { roles, dispatch } = useData();
@@ -57,27 +58,39 @@ function RoleCreationTab() {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name.trim()) return;
 
-    const roleData = {
-      id: editingRole?.id || Date.now().toString(),
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-    };
+    try {
+      const roleData = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || null,
+      };
 
-    if (editingRole) {
-      dispatch({ type: 'UPDATE_ROLE', payload: roleData });
-    } else {
-      dispatch({ type: 'ADD_ROLE', payload: roleData });
+      if (editingRole) {
+        const updatedRole = await roleHelpers.update(editingRole.id, roleData);
+        dispatch({ type: 'UPDATE_ROLE', payload: updatedRole });
+      } else {
+        const newRole = await roleHelpers.add(roleData);
+        dispatch({ type: 'ADD_ROLE', payload: newRole });
+      }
+
+      handleCloseDialog();
+    } catch (error) {
+      console.error('Error saving role:', error);
+      alert(`Error saving role: ${error.message}. Please try again.`);
     }
-
-    handleCloseDialog();
   };
 
-  const handleDeleteRole = (roleId) => {
+  const handleDeleteRole = async (roleId) => {
     if (window.confirm('Are you sure you want to delete this role? This will affect all staff trained for this role.')) {
-      dispatch({ type: 'DELETE_ROLE', payload: roleId });
+      try {
+        await roleHelpers.delete(roleId);
+        dispatch({ type: 'DELETE_ROLE', payload: roleId });
+      } catch (error) {
+        console.error('Error deleting role:', error);
+        alert(`Error deleting role: ${error.message}. Please try again.`);
+      }
     }
   };
 

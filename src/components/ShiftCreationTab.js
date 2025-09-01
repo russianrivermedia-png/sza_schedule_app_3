@@ -39,6 +39,7 @@ import {
   AddCircle as AddCircleIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
+import { shiftHelpers } from '../lib/supabaseHelpers';
 
 function ShiftCreationTab() {
   const { shifts, roles, tours, dispatch } = useData();
@@ -98,29 +99,41 @@ function ShiftCreationTab() {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name.trim() || formData.requiredRoles.length === 0) return;
 
-    const shiftData = {
-      id: editingShift?.id || Date.now().toString(),
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-      requiredRoles: formData.requiredRoles,
-      tours: formData.tours,
-    };
+    try {
+      const shiftData = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || null,
+        required_roles: formData.requiredRoles,
+        tours: formData.tours,
+      };
 
-    if (editingShift) {
-      dispatch({ type: 'UPDATE_SHIFT', payload: shiftData });
-    } else {
-      dispatch({ type: 'ADD_SHIFT', payload: shiftData });
+      if (editingShift) {
+        const updatedShift = await shiftHelpers.update(editingShift.id, shiftData);
+        dispatch({ type: 'UPDATE_SHIFT', payload: updatedShift });
+      } else {
+        const newShift = await shiftHelpers.add(shiftData);
+        dispatch({ type: 'ADD_SHIFT', payload: newShift });
+      }
+
+      handleCloseDialog();
+    } catch (error) {
+      console.error('Error saving shift:', error);
+      alert(`Error saving shift: ${error.message}. Please try again.`);
     }
-
-    handleCloseDialog();
   };
 
-  const handleDeleteShift = (shiftId) => {
+  const handleDeleteShift = async (shiftId) => {
     if (window.confirm('Are you sure you want to delete this shift? This will affect all schedules using this shift.')) {
-      dispatch({ type: 'DELETE_SHIFT', payload: shiftId });
+      try {
+        await shiftHelpers.delete(shiftId);
+        dispatch({ type: 'DELETE_SHIFT', payload: shiftId });
+      } catch (error) {
+        console.error('Error deleting shift:', error);
+        alert(`Error deleting shift: ${error.message}. Please try again.`);
+      }
     }
   };
 
@@ -155,7 +168,7 @@ function ShiftCreationTab() {
     setBulkShifts(shifts);
   };
 
-  const handleBulkSubmit = () => {
+  const handleBulkSubmit = async () => {
     if (!bulkData.baseName.trim() || bulkData.requiredRoles.length === 0) return;
     
     // Generate shifts if not already generated
@@ -164,31 +177,36 @@ function ShiftCreationTab() {
       return;
     }
 
-    // Add all generated shifts
-    bulkShifts.forEach(shift => {
-      const shiftData = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        name: shift.name,
-        description: shift.description,
-        requiredRoles: shift.requiredRoles,
-        tours: shift.tours,
-      };
-      dispatch({ type: 'ADD_SHIFT', payload: shiftData });
-    });
+    try {
+      // Add all generated shifts to Supabase
+      for (const shift of bulkShifts) {
+        const shiftData = {
+          name: shift.name,
+          description: shift.description || null,
+          required_roles: shift.requiredRoles,
+          tours: shift.tours,
+        };
+        const newShift = await shiftHelpers.add(shiftData);
+        dispatch({ type: 'ADD_SHIFT', payload: newShift });
+      }
 
-    // Reset and close
-    setBulkShifts([]);
-    setBulkData({
-      baseName: '',
-      count: 1,
-      startNumber: 1,
-      suffix: '',
-      description: '',
-      requiredRoles: [],
-      tours: [],
-    });
-    setBulkMode(false);
-    setOpenDialog(false);
+      // Reset and close
+      setBulkShifts([]);
+      setBulkData({
+        baseName: '',
+        count: 1,
+        startNumber: 1,
+        suffix: '',
+        description: '',
+        requiredRoles: [],
+        tours: [],
+      });
+      setBulkMode(false);
+      setOpenDialog(false);
+    } catch (error) {
+      console.error('Error creating bulk shifts:', error);
+      alert(`Error creating shifts: ${error.message}. Please try again.`);
+    }
   };
 
   const handleBulkRoleChange = (event) => {
@@ -298,7 +316,7 @@ function ShiftCreationTab() {
                     <strong>Required Roles:</strong>
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {shift.requiredRoles.map(roleId => {
+                    {(shift.required_roles || shift.requiredRoles || []).map(roleId => {
                       const role = roles.find(r => r.id === roleId);
                       return role ? (
                         <Chip
@@ -337,7 +355,7 @@ function ShiftCreationTab() {
 
                 <Box sx={{ mt: 2 }}>
                   <Chip
-                    label={`${shift.requiredRoles.length} role${shift.requiredRoles.length !== 1 ? 's' : ''} required`}
+                    label={`${(shift.required_roles || shift.requiredRoles || []).length} role${(shift.required_roles || shift.requiredRoles || []).length !== 1 ? 's' : ''} required`}
                     size="small"
                     variant="outlined"
                     color="secondary"
