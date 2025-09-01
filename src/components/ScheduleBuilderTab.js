@@ -238,14 +238,14 @@ function ScheduleBuilderTab() {
        shifts: [
          ...(weekSchedule[dayKey]?.shifts || []),
          ...shiftsToAdd
-       ]
-     };
+      ]
+    };
 
-     setWeekSchedule(prev => ({
-       ...prev,
-       [dayKey]: updatedDay
-     }));
-   };
+    setWeekSchedule(prev => ({
+      ...prev,
+      [dayKey]: updatedDay
+    }));
+  };
 
      const handleShiftSelection = (shiftId) => {
      setSelectedShifts(prev => {
@@ -302,7 +302,7 @@ function ScheduleBuilderTab() {
       ...daySchedule,
       shifts: updatedShifts
     };
-    
+
     setWeekSchedule(prev => ({
       ...prev,
       [dayKey]: updatedDay
@@ -647,11 +647,11 @@ function ScheduleBuilderTab() {
           
                      // Try to assign staff to this role - ONLY if there are NO conflicts
            let roleAssigned = false;
-           for (const staffMember of availableStaff) {
-             const conflicts = getStaffConflicts(staffMember.id, new Date(dayKey), roleId);
+          for (const staffMember of availableStaff) {
+            const conflicts = getStaffConflicts(staffMember.id, new Date(dayKey), roleId);
              // Only assign if there are absolutely NO conflicts
-             if (conflicts.length === 0) {
-               updatedAssignedStaff[roleId] = staffMember.id;
+            if (conflicts.length === 0) {
+              updatedAssignedStaff[roleId] = staffMember.id;
                dayAssignedStaff.add(staffMember.id); // Mark as assigned for this day
                assignedRoles++;
                roleAssigned = true;
@@ -665,8 +665,8 @@ function ScheduleBuilderTab() {
                  }
                });
                
-               break;
-             }
+              break;
+            }
              // If there are any conflicts, skip this staff member and try the next one
            }
           
@@ -724,7 +724,7 @@ function ScheduleBuilderTab() {
     return shift.tours.map(tourId => tours.find(t => t.id === tourId)).filter(Boolean);
   };
 
-    const renderScheduleTable = (day, dayIndex) => {
+  const renderScheduleTable = (day, dayIndex) => {
     const dayKey = format(day, 'yyyy-MM-dd');
     const daySchedule = weekSchedule[dayKey] || { shifts: [] };
     const dayOfWeek = DAYS_OF_WEEK[dayIndex];
@@ -751,57 +751,57 @@ function ScheduleBuilderTab() {
       <Box>
         {/* Tour-based shifts in table format */}
         {shiftsWithTours.length > 0 && (
-          <TableContainer component={Paper} sx={{ mt: 2 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
+      <TableContainer component={Paper} sx={{ mt: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
                   <TableCell width="12%">Arrival Time</TableCell>
                   <TableCell width="20%">Shift Title</TableCell>
                   <TableCell width="35%">Staff Assigned</TableCell>
                   <TableCell width="25%">Tours</TableCell>
                   <TableCell width="8%">Notes</TableCell>
                   <TableCell width="8%">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+            </TableRow>
+          </TableHead>
+          <TableBody>
                 {shiftsWithTours.map((shift, shiftIndex) => {
-                  const shiftTemplate = shifts.find(s => s.id === shift.shiftId);
-                  const shiftTours = getShiftTours(shift);
-                  const hasNotes = shift.notes && shift.notes.trim().length > 0;
+              const shiftTemplate = shifts.find(s => s.id === shift.shiftId);
+              const shiftTours = getShiftTours(shift);
+              const hasNotes = shift.notes && shift.notes.trim().length > 0;
 
-                  return (
-                    <React.Fragment key={shift.id}>
-                      <TableRow>
-                        <TableCell>
-                          <TextField
-                            size="small"
-                            value={shift.arrivalTime || ''}
-                            onChange={(e) => handleArrivalTimeChange(day, shiftIndex, e.target.value)}
-                            placeholder="9:00 AM"
-                            sx={{ width: '100%' }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="bold">
-                            {shift.name}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                            {shift.requiredRoles.map(roleId => {
+              return (
+                <React.Fragment key={shift.id}>
+                  <TableRow>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        value={shift.arrivalTime || ''}
+                        onChange={(e) => handleArrivalTimeChange(day, shiftIndex, e.target.value)}
+                        placeholder="9:00 AM"
+                        sx={{ width: '100%' }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="bold">
+                        {shift.name}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {shift.requiredRoles.map(roleId => {
                               const role = getRoleById(roleId);
-                              const assignedStaffId = shift.assignedStaff[roleId];
+                          const assignedStaffId = shift.assignedStaff[roleId];
                               const assignedStaff = getStaffById(assignedStaffId);
-                              const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
-                              
-                              return (
-                                <Box key={roleId} sx={{ mb: 1 }}>
-                                  <DroppableRole
-                                    role={role}
-                                    assignedStaff={assignedStaff}
-                                    conflicts={conflicts}
-                                    onStaffDrop={(staffId) => handleStaffDrop(day, shiftIndex, roleId, staffId)}
-                                    onRemoveStaff={() => removeStaffFromRole(day, shiftIndex, roleId)}
+                          const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
+                          
+                          return (
+                            <Box key={roleId} sx={{ mb: 1 }}>
+                              <DroppableRole
+                                role={role}
+                                assignedStaff={assignedStaff}
+                                conflicts={conflicts}
+                                onStaffDrop={(staffId) => handleStaffDrop(day, shiftIndex, roleId, staffId)}
+                                onRemoveStaff={() => removeStaffFromRole(day, shiftIndex, roleId)}
                                     onStaffColorChange={(staffId, color) => handleStaffColorChange(day, shiftIndex, staffId, color)}
                                     staffColor={shift.staffColors?.[assignedStaffId] || 'gray'}
                                     staff={staff}
@@ -816,35 +816,35 @@ function ScheduleBuilderTab() {
                                       sx={{ mt: 0.5, fontSize: '0.7rem' }}
                                     />
                                   )}
-                                </Box>
-                              );
-                            })}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <TourDisplay
-                            tours={shiftTours}
-                            tourColors={shift.tourColors}
-                            onTourColorChange={(tourId, color) => handleTourColorChange(day, shiftIndex, tourId, color)}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {hasNotes && (
-                            <Tooltip title={shift.notes} arrow>
-                              <IconButton
-                                size="small"
-                                color="warning"
-                                onClick={() => handleOpenNotesDialog(day, shiftIndex, shift)}
-                              >
-                                <NotesIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                        <TableCell>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <TourDisplay
+                        tours={shiftTours}
+                        tourColors={shift.tourColors}
+                        onTourColorChange={(tourId, color) => handleTourColorChange(day, shiftIndex, tourId, color)}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {hasNotes && (
+                        <Tooltip title={shift.notes} arrow>
                           <IconButton
                             size="small"
+                            color="warning"
+                            onClick={() => handleOpenNotesDialog(day, shiftIndex, shift)}
+                          >
+                            <NotesIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                          <IconButton
+                        size="small"
                             onClick={(event) => {
                               setSelectedDay(day);
                               setSelectedShiftIndex(shiftIndex);
@@ -855,14 +855,14 @@ function ScheduleBuilderTab() {
                           >
                             <MoreVertIcon />
                           </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                    </TableCell>
+                  </TableRow>
+                </React.Fragment>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
         )}
 
         {/* Non-tour shifts in compact boxes */}
@@ -1030,7 +1030,7 @@ function ScheduleBuilderTab() {
         <Typography variant="h6" sx={{ mb: 2 }}>
           Week of {format(weekStart, 'MMMM d, yyyy')}
         </Typography>
-         
+
                    {/* Assignment Status Summary */}
           {(() => {
             const totalRoles = Object.values(weekSchedule).flatMap(day => 
@@ -1072,57 +1072,57 @@ function ScheduleBuilderTab() {
                  <Box sx={{ display: 'flex', gap: 2 }}>
            {/* Main Schedule Content */}
            <Box sx={{ flexGrow: 1 }}>
-             <Grid container spacing={2}>
-               {weekDates.map((day, dayIndex) => {
-                 const dayKey = format(day, 'yyyy-MM-dd');
-                 const daySchedule = weekSchedule[dayKey] || { shifts: [] };
-                 const dayOfWeek = DAYS_OF_WEEK[dayIndex];
-                 
-                 return (
-                   <Grid item xs={12} key={dayKey}>
-                     <Card>
-                       <CardContent>
-                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                           <Typography variant="h6">
-                             {dayOfWeek} - {format(day, 'MMM d')}
-                           </Typography>
+        <Grid container spacing={2}>
+          {weekDates.map((day, dayIndex) => {
+            const dayKey = format(day, 'yyyy-MM-dd');
+            const daySchedule = weekSchedule[dayKey] || { shifts: [] };
+            const dayOfWeek = DAYS_OF_WEEK[dayIndex];
+            
+            return (
+              <Grid item xs={12} key={dayKey}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6">
+                        {dayOfWeek} - {format(day, 'MMM d')}
+                      </Typography>
                                                        <Box sx={{ display: 'flex', gap: 1 }}>
-                              <Button
-                                size="small"
+                      <Button
+                        size="small"
                                 startIcon={<AddCircleIcon />}
-                                onClick={() => {
-                                  setSelectedDay(day);
-                                  setOpenShiftDialog(true);
-                                }}
-                              >
+                        onClick={() => {
+                          setSelectedDay(day);
+                          setOpenShiftDialog(true);
+                        }}
+                      >
                                 Add Shifts
-                              </Button>
+                      </Button>
                             </Box>
-                         </Box>
+                    </Box>
 
-                         {renderScheduleTable(day, dayIndex)}
-                       </CardContent>
-                     </Card>
-                   </Grid>
-                 );
-               })}
-             </Grid>
+                    {renderScheduleTable(day, dayIndex)}
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
+        </Grid>
            </Box>
 
            
-         </Box>
+        </Box>
 
         
 
-                 {/* Add Shift Dialog */}
+        {/* Add Shift Dialog */}
          <Dialog open={openShiftDialog} onClose={() => setOpenShiftDialog(false)} maxWidth="md" fullWidth>
            <DialogTitle>
              <Typography variant="h6">
                Add Shifts to {selectedDay ? format(selectedDay, 'EEEE, MMM d') : ''}
              </Typography>
            </DialogTitle>
-           <DialogContent>
-             <Box sx={{ pt: 1 }}>
+          <DialogContent>
+            <Box sx={{ pt: 1 }}>
                <Alert severity="info" sx={{ mb: 2 }}>
                  <Typography variant="body2">
                    Select shifts to add to {selectedDay ? format(selectedDay, 'EEEE, MMM d') : 'this day'}. 
@@ -1207,46 +1207,46 @@ function ScheduleBuilderTab() {
                   </Typography>
                 </Alert>
               )}
-             </Box>
-           </DialogContent>
-           <DialogActions>
-             <Button onClick={() => setOpenShiftDialog(false)}>Cancel</Button>
-             <Button
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenShiftDialog(false)}>Cancel</Button>
+            <Button
                onClick={handleAddShifts}
-               variant="contained"
+              variant="contained"
                disabled={selectedShifts.length === 0}
                startIcon={<AddCircleIcon />}
-             >
+            >
                Add {selectedShifts.length} Shift{selectedShifts.length !== 1 ? 's' : ''}
-             </Button>
-           </DialogActions>
-         </Dialog>
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-                           {/* Notes Dialog */}
-          <Dialog open={openNotesDialog} onClose={() => setOpenNotesDialog(false)} maxWidth="sm" fullWidth>
-            <DialogTitle>
-              Notes for {selectedShiftData?.name} - {selectedDay ? format(selectedDay, 'EEEE, MMM d') : ''}
-            </DialogTitle>
-            <DialogContent>
-              <Box sx={{ pt: 1 }}>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={4}
-                  label="Notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Enter any notes about this shift..."
-                />
-              </Box>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setOpenNotesDialog(false)}>Cancel</Button>
-              <Button onClick={handleSaveNotes} variant="contained">
-                Save Notes
-              </Button>
-            </DialogActions>
-          </Dialog>
+        {/* Notes Dialog */}
+        <Dialog open={openNotesDialog} onClose={() => setOpenNotesDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>
+            Notes for {selectedShiftData?.name} - {selectedDay ? format(selectedDay, 'EEEE, MMM d') : ''}
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ pt: 1 }}>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="Notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Enter any notes about this shift..."
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenNotesDialog(false)}>Cancel</Button>
+            <Button onClick={handleSaveNotes} variant="contained">
+              Save Notes
+            </Button>
+          </DialogActions>
+        </Dialog>
 
           {/* Add Role Dialog */}
           <Dialog open={openAddRoleDialog} onClose={() => setOpenAddRoleDialog(false)} maxWidth="sm" fullWidth>

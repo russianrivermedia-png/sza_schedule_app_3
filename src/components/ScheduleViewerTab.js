@@ -157,46 +157,46 @@ function ScheduleViewerTab() {
         {/* Tour-based shifts in table format */}
         {shiftsWithTours.length > 0 && (
           <TableContainer component={Paper} sx={{ mt: 1 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
                   <TableCell width="15%">Time</TableCell>
                   <TableCell width="20%">Shift</TableCell>
                   <TableCell width="35%">Staff</TableCell>
                   <TableCell width="20%">Tours</TableCell>
                   <TableCell width="10%">Notes</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+            </TableRow>
+          </TableHead>
+          <TableBody>
                 {shiftsWithTours.map((shift) => {
-                  const shiftTours = getShiftTours(shift);
-                  const hasNotes = shift.notes && shift.notes.trim().length > 0;
+                const shiftTours = getShiftTours(shift);
+                const hasNotes = shift.notes && shift.notes.trim().length > 0;
 
-                  return (
+                return (
                     <TableRow key={shift.id}>
-                      <TableCell>
+                    <TableCell>
                         <Typography variant="body2" color="text.secondary">
                           {shift.arrivalTime || 'TBD'}
                         </Typography>
-                      </TableCell>
-                      <TableCell>
+                    </TableCell>
+                    <TableCell>
                         <Typography variant="body2" fontWeight="medium">
-                          {shift.name}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {shift.requiredRoles.map(roleId => {
-                            const role = roles.find(r => r.id === roleId);
-                            const assignedStaffId = shift.assignedStaff[roleId];
-                            const assignedStaff = staff.find(s => s.id === assignedStaffId);
-                            
-                            return (
+                        {shift.name}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {shift.requiredRoles.map(roleId => {
+                          const role = roles.find(r => r.id === roleId);
+                          const assignedStaffId = shift.assignedStaff[roleId];
+                          const assignedStaff = staff.find(s => s.id === assignedStaffId);
+                          
+                          return (
                               <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <Tooltip title={role?.name || 'Unknown Role'} arrow placement="top">
-                                  <Chip
+                              <Chip
                                     label={assignedStaff ? assignedStaff.name.split(' ')[0] : 'Unassigned'}
-                                    size="small"
+                                size="small"
                                     variant="filled"
                                     sx={{
                                       fontSize: '0.7rem',
@@ -207,18 +207,18 @@ function ScheduleViewerTab() {
                                     }}
                                   />
                                 </Tooltip>
-                              </Box>
-                            );
-                          })}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {shiftTours.map(tour => (
                             <Chip
                               key={tour.id}
                               label={tour.name}
-                              size="small"
+                        size="small"
                               variant="outlined"
                               sx={{ 
                                 fontSize: '0.7rem', 
@@ -228,9 +228,9 @@ function ScheduleViewerTab() {
                             />
                           ))}
                         </Box>
-                      </TableCell>
-                      <TableCell>
-                        {hasNotes && (
+                    </TableCell>
+                    <TableCell>
+                      {hasNotes && (
                           <Tooltip title={shift.notes} arrow placement="top">
                             <Typography 
                               variant="caption" 
@@ -243,15 +243,15 @@ function ScheduleViewerTab() {
                             >
                               📝
                             </Typography>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
         )}
 
         {/* Non-tour shifts in compact boxes */}
@@ -286,13 +286,13 @@ function ScheduleViewerTab() {
                       const role = roles.find(r => r.id === roleId);
                       const assignedStaffId = shift.assignedStaff[roleId];
                       const assignedStaff = staff.find(s => s.id === assignedStaffId);
-                      
-                      return (
+    
+    return (
                         <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Tooltip title={role?.name || 'Unknown Role'} arrow placement="top">
-                            <Chip
+                    <Chip
                               label={assignedStaff ? assignedStaff.name.split(' ')[0] : 'Unassigned'}
-                              size="small"
+                      size="small"
                               variant="filled"
                               sx={{
                                 fontSize: '0.7rem',
@@ -301,8 +301,8 @@ function ScheduleViewerTab() {
                                 color: 'white',
                                 fontWeight: 'medium',
                               }}
-                            />
-                          </Tooltip>
+                          />
+                        </Tooltip>
                         </Box>
                       );
                     })}
@@ -329,8 +329,8 @@ function ScheduleViewerTab() {
                     </Box>
                   )}
                 </Box>
-              ))}
-            </Box>
+                      ))}
+                    </Box>
           </Box>
         )}
       </Box>
@@ -342,8 +342,8 @@ function ScheduleViewerTab() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4">Schedule Viewer</Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="contained"
+            <Button
+              variant="contained"
             startIcon={<PdfIcon />}
             onClick={exportToPDF}
             sx={{ bgcolor: '#d32f2f', '&:hover': { bgcolor: '#b71c1c' } }}
@@ -371,8 +371,8 @@ function ScheduleViewerTab() {
             onClick={() => setSelectedWeek(prev => addDays(prev, 7))}
           >
             Next Week
-          </Button>
-        </Box>
+            </Button>
+          </Box>
       </Box>
 
       <Typography variant="h6" sx={{ mb: 2 }}>
@@ -400,7 +400,7 @@ function ScheduleViewerTab() {
             );
           })}
         </Grid>
-      </Box>
+        </Box>
     </Box>
   );
 }

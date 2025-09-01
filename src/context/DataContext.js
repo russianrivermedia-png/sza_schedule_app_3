@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
+import { supabase } from '../lib/supabase';
 
 const DataContext = createContext();
 
@@ -10,6 +11,8 @@ const initialState = {
   schedules: [],
   timeOffRequests: [],
   currentWeek: new Date(),
+  loading: true,
+  error: null,
 };
 
 // Performance optimization: Create efficient lookup indexes
@@ -20,12 +23,12 @@ const createIndexes = (data) => {
     shiftsById: new Map(data.shifts.map(s => [s.id, s])),
     toursById: new Map(data.tours.map(t => [t.id, t])),
     timeOffByStaff: data.timeOffRequests.reduce((acc, t) => {
-      if (!acc[t.staffId]) acc[t.staffId] = [];
-      acc[t.staffId].push(t);
+      if (!acc[t.staff_id]) acc[t.staff_id] = [];
+      acc[t.staff_id].push(t);
       return acc;
     }, {}),
     schedulesByWeek: data.schedules.reduce((acc, s) => {
-      acc[s.weekKey] = s;
+      acc[s.week_start] = s;
       return acc;
     }, {})
   };
@@ -33,6 +36,10 @@ const createIndexes = (data) => {
 
 function dataReducer(state, action) {
   switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
     case 'SET_STAFF':
       return { ...state, staff: action.payload };
     case 'ADD_STAFF':
@@ -140,67 +147,126 @@ function dataReducer(state, action) {
   }
 }
 
-// Debounce utility function
-const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
-
 export function DataProvider({ children }) {
-  // Load data from localStorage on mount
-  const loadInitialState = () => {
-    try {
-      const savedData = localStorage.getItem('szaScheduleData');
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        // Merge saved data with initial state, ensuring all required fields exist
-        return {
-          ...initialState,
-          ...parsed,
-          // Ensure arrays exist and are valid
-          staff: Array.isArray(parsed.staff) ? parsed.staff : [],
-          roles: Array.isArray(parsed.roles) ? parsed.roles : [],
-          shifts: Array.isArray(parsed.shifts) ? parsed.shifts : [],
-          tours: Array.isArray(parsed.tours) ? parsed.tours : [],
-          schedules: Array.isArray(parsed.schedules) ? parsed.schedules : [],
-          timeOffRequests: Array.isArray(parsed.timeOffRequests) ? parsed.timeOffRequests : [],
-          currentWeek: parsed.currentWeek ? new Date(parsed.currentWeek) : new Date(),
-        };
-      }
-    } catch (error) {
-      console.error('Error loading saved data:', error);
-    }
-    return initialState;
-  };
-
-  const [state, dispatch] = useReducer(dataReducer, loadInitialState());
+  const [state, dispatch] = useReducer(dataReducer, initialState);
 
   // Create memoized indexes for O(1) lookups
   const indexes = useMemo(() => createIndexes(state), [state]);
 
-  // Debounced save function to prevent excessive localStorage writes
-  const debouncedSave = useCallback(
-    debounce((data) => {
-      try {
-        localStorage.setItem('szaScheduleData', JSON.stringify(data));
-      } catch (error) {
-        console.error('Error saving data to localStorage:', error);
-      }
-    }, 1000), // Save after 1 second of inactivity
-    []
-  );
+  // Load data from Supabase on mount
+  const loadData = useCallback(async () => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'SET_ERROR', payload: null });
 
-  // Save data to localStorage whenever state changes (debounced)
+      // Load all data in parallel
+      const [staffResult, rolesResult, shiftsResult, toursResult, schedulesResult, timeOffResult] = await Promise.all([
+        supabase.from('staff').select('*'),
+        supabase.from('roles').select('*'),
+        supabase.from('shifts').select('*'),
+        supabase.from('tours').select('*'),
+        supabase.from('schedules').select('*'),
+        supabase.from('time_off_requests').select('*'),
+      ]);
+
+      // Check for errors
+      if (staffResult.error) throw staffResult.error;
+      if (rolesResult.error) throw rolesResult.error;
+      if (shiftsResult.error) throw shiftsResult.error;
+      if (toursResult.error) throw toursResult.error;
+      if (schedulesResult.error) throw schedulesResult.error;
+      if (timeOffResult.error) throw timeOffResult.error;
+
+      // Dispatch data
+      dispatch({ type: 'SET_STAFF', payload: staffResult.data || [] });
+      dispatch({ type: 'SET_ROLES', payload: rolesResult.data || [] });
+      dispatch({ type: 'SET_SHIFTS', payload: shiftsResult.data || [] });
+      dispatch({ type: 'SET_TOURS', payload: toursResult.data || [] });
+      dispatch({ type: 'SET_SCHEDULES', payload: schedulesResult.data || [] });
+      dispatch({ type: 'SET_TIME_OFF_REQUESTS', payload: timeOffResult.data || [] });
+
+      } catch (error) {
+      console.error('Error loading data:', error);
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
+
+  // Load data on mount
   useEffect(() => {
-    debouncedSave(state);
-  }, [state, debouncedSave]);
+    loadData();
+  }, [loadData]);
+
+  // Set up real-time subscriptions
+  useEffect(() => {
+    const subscriptions = [
+      supabase.channel('staff').on('postgres_changes', { event: '*', schema: 'public', table: 'staff' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          dispatch({ type: 'ADD_STAFF', payload: payload.new });
+        } else if (payload.eventType === 'UPDATE') {
+          dispatch({ type: 'UPDATE_STAFF', payload: payload.new });
+        } else if (payload.eventType === 'DELETE') {
+          dispatch({ type: 'DELETE_STAFF', payload: payload.old.id });
+        }
+      }).subscribe(),
+
+      supabase.channel('roles').on('postgres_changes', { event: '*', schema: 'public', table: 'roles' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          dispatch({ type: 'ADD_ROLE', payload: payload.new });
+        } else if (payload.eventType === 'UPDATE') {
+          dispatch({ type: 'UPDATE_ROLE', payload: payload.new });
+        } else if (payload.eventType === 'DELETE') {
+          dispatch({ type: 'DELETE_ROLE', payload: payload.old.id });
+        }
+      }).subscribe(),
+
+      supabase.channel('shifts').on('postgres_changes', { event: '*', schema: 'public', table: 'shifts' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          dispatch({ type: 'ADD_SHIFT', payload: payload.new });
+        } else if (payload.eventType === 'UPDATE') {
+          dispatch({ type: 'UPDATE_SHIFT', payload: payload.new });
+        } else if (payload.eventType === 'DELETE') {
+          dispatch({ type: 'DELETE_SHIFT', payload: payload.old.id });
+        }
+      }).subscribe(),
+
+      supabase.channel('tours').on('postgres_changes', { event: '*', schema: 'public', table: 'tours' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          dispatch({ type: 'ADD_TOUR', payload: payload.new });
+        } else if (payload.eventType === 'UPDATE') {
+          dispatch({ type: 'UPDATE_TOUR', payload: payload.new });
+        } else if (payload.eventType === 'DELETE') {
+          dispatch({ type: 'DELETE_TOUR', payload: payload.old.id });
+        }
+      }).subscribe(),
+
+      supabase.channel('schedules').on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          dispatch({ type: 'ADD_SCHEDULE', payload: payload.new });
+        } else if (payload.eventType === 'UPDATE') {
+          dispatch({ type: 'UPDATE_SCHEDULE', payload: payload.new });
+        } else if (payload.eventType === 'DELETE') {
+          dispatch({ type: 'DELETE_SCHEDULE', payload: payload.old.id });
+        }
+      }).subscribe(),
+
+      supabase.channel('time_off_requests').on('postgres_changes', { event: '*', schema: 'public', table: 'time_off_requests' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          dispatch({ type: 'ADD_TIME_OFF_REQUEST', payload: payload.new });
+        } else if (payload.eventType === 'UPDATE') {
+          dispatch({ type: 'UPDATE_TIME_OFF_REQUEST', payload: payload.new });
+        } else if (payload.eventType === 'DELETE') {
+          dispatch({ type: 'DELETE_TIME_OFF_REQUEST', payload: payload.old.id });
+        }
+      }).subscribe(),
+    ];
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      subscriptions.forEach(sub => sub.unsubscribe());
+    };
+  }, []);
 
   const value = {
     ...state,
@@ -215,6 +281,9 @@ export function DataProvider({ children }) {
     getTimeOffByStaffId: (staffId) => indexes.timeOffByStaff[staffId] || [],
     getScheduleByWeek: (weekKey) => indexes.schedulesByWeek[weekKey],
     hasData: state.staff.length > 0 || state.roles.length > 0 || state.shifts.length > 0 || state.tours.length > 0,
+    // Supabase functions
+    supabase,
+    loadData,
   };
 
   return (

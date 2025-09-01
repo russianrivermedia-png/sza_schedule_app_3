@@ -38,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { format } from 'date-fns';
+import { staffHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -85,10 +86,10 @@ function StaffTab() {
         name: staff.name,
         email: staff.email || '',
         phone: staff.phone || '',
-        hireDate: staff.hireDate || '',
-        availability: staff.availability,
-        trainedRoles: staff.trainedRoles || [],
-        targetShifts: staff.targetShifts || 5,
+        hireDate: staff.hire_date || '',
+        availability: staff.availability || DAYS_OF_WEEK,
+        trainedRoles: staff.trained_roles || [],
+        targetShifts: staff.target_shifts || 5,
       });
     } else {
       setEditingStaff(null);
@@ -119,28 +120,59 @@ function StaffTab() {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name.trim()) return;
 
-    const staffData = {
-      id: editingStaff?.id || Date.now().toString(),
-      ...formData,
-      trainedRoles: formData.trainedRoles,
-      availability: formData.availability,
-    };
+    try {
+      // Test Supabase connection first
+      console.log('Testing Supabase connection...');
+      console.log('Staff data to save:', {
+        name: formData.name.trim(),
+        hire_date: formData.hireDate || null,
+        staff_color: 'gray',
+        trained_roles: formData.trainedRoles,
+        availability: formData.availability,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        target_shifts: formData.targetShifts || 5,
+      });
+      const staffData = {
+        name: formData.name.trim(),
+        hire_date: formData.hireDate || null,
+        staff_color: 'gray', // Default color
+        trained_roles: formData.trainedRoles,
+        availability: formData.availability,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        target_shifts: formData.targetShifts || 5,
+      };
 
-    if (editingStaff) {
-      dispatch({ type: 'UPDATE_STAFF', payload: staffData });
-    } else {
-      dispatch({ type: 'ADD_STAFF', payload: staffData });
+      if (editingStaff) {
+        const updatedStaff = await staffHelpers.update(editingStaff.id, staffData);
+        dispatch({ type: 'UPDATE_STAFF', payload: updatedStaff });
+      } else {
+        const newStaff = await staffHelpers.add(staffData);
+        dispatch({ type: 'ADD_STAFF', payload: newStaff });
+      }
+
+      handleCloseDialog();
+    } catch (error) {
+      console.error('Error saving staff:', error);
+      console.error('Error details:', error.message);
+      console.error('Error code:', error.code);
+      alert(`Error saving staff member: ${error.message}. Please try again.`);
     }
-
-    handleCloseDialog();
   };
 
-  const handleDeleteStaff = (staffId) => {
+  const handleDeleteStaff = async (staffId) => {
     if (window.confirm('Are you sure you want to delete this staff member?')) {
-      dispatch({ type: 'DELETE_STAFF', payload: staffId });
+      try {
+        await staffHelpers.delete(staffId);
+        dispatch({ type: 'DELETE_STAFF', payload: staffId });
+      } catch (error) {
+        console.error('Error deleting staff:', error);
+        alert('Error deleting staff member. Please try again.');
+      }
     }
   };
 
@@ -162,38 +194,49 @@ function StaffTab() {
     }));
   };
 
-  const handleTimeOffSubmit = () => {
+  const handleTimeOffSubmit = async () => {
     if (!timeOffForm.staffId || !timeOffForm.startDate || !timeOffForm.endDate) return;
 
-    const timeOffData = {
-      id: Date.now().toString(),
-      ...timeOffForm,
-      status: timeOffForm.isApproved ? 'approved' : 'pending',
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const timeOffData = {
+        staff_id: timeOffForm.staffId,
+        start_date: timeOffForm.startDate,
+        end_date: timeOffForm.endDate,
+        status: timeOffForm.isApproved ? 'approved' : 'pending',
+      };
 
-    dispatch({ type: 'ADD_TIME_OFF_REQUEST', payload: timeOffData });
-    setTimeOffForm({
-      staffId: '',
-      startDate: '',
-      endDate: '',
-      reason: '',
-      isApproved: false,
-    });
-    setTimeOffDialogOpen(false);
+      const newTimeOff = await timeOffHelpers.add(timeOffData);
+      dispatch({ type: 'ADD_TIME_OFF_REQUEST', payload: newTimeOff });
+      
+      setTimeOffForm({
+        staffId: '',
+        startDate: '',
+        endDate: '',
+        reason: '',
+        isApproved: false,
+      });
+      setTimeOffDialogOpen(false);
+    } catch (error) {
+      console.error('Error adding time off request:', error);
+      alert('Error adding time off request. Please try again.');
+    }
   };
 
-  const handleTimeOffStatusChange = (requestId, newStatus) => {
+  const handleTimeOffStatusChange = async (requestId, newStatus) => {
     const request = timeOffRequests.find(r => r.id === requestId);
     if (request) {
-      dispatch({
-        type: 'UPDATE_TIME_OFF_REQUEST',
-        payload: { 
-          ...request, 
-          status: newStatus, 
-          isApproved: newStatus === 'approved' 
-        }
-      });
+      try {
+        const updatedRequest = await timeOffHelpers.update(requestId, { 
+          status: newStatus 
+        });
+        dispatch({
+          type: 'UPDATE_TIME_OFF_REQUEST',
+          payload: updatedRequest
+        });
+      } catch (error) {
+        console.error('Error updating time off request:', error);
+        alert('Error updating time off request. Please try again.');
+      }
     }
   };
 
@@ -217,7 +260,7 @@ function StaffTab() {
   };
 
   const getStaffTimeOff = (staffId) => {
-    return timeOffRequests.filter(t => t.staffId === staffId && t.status === 'approved');
+    return timeOffRequests.filter(t => t.staff_id === staffId && t.status === 'approved');
   };
 
   const getStaffAvailabilityStatus = (staff) => {
@@ -232,7 +275,7 @@ function StaffTab() {
     if (hasTimeOff) {
       return { status: 'time-off', message: 'Time Off' };
     }
-    if (!staff.availability.includes(dayOfWeek)) {
+    if (!staff.availability || !staff.availability.includes(dayOfWeek)) {
       return { status: 'unavailable', message: 'Not Available' };
     }
     return { status: 'available', message: 'Available' };
@@ -374,18 +417,18 @@ function StaffTab() {
                       {member.phone}
                     </Typography>
                   )}
-                                     {member.hireDate && (
+                                     {member.hire_date && (
                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                       <strong>Hire Date:</strong> {format(new Date(member.hireDate), 'MMM dd, yyyy')}
+                       <strong>Hire Date:</strong> {format(new Date(member.hire_date), 'MMM dd, yyyy')}
                        <Typography component="span" variant="body2" color="primary" sx={{ ml: 1 }}>
-                         ({calculateTenure(member.hireDate)})
+                         ({calculateTenure(member.hire_date)})
                        </Typography>
                      </Typography>
                    )}
 
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="body2" gutterBottom>
-                      <strong>Target Shifts:</strong> {member.targetShifts || 5}
+                      <strong>Target Shifts:</strong> {member.target_shifts || 5}
                     </Typography>
                     
                     <Typography variant="body2" gutterBottom>
@@ -429,7 +472,7 @@ function StaffTab() {
                       <strong>Trained Roles:</strong>
                     </Typography>
                                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                       {member.trainedRoles.map(roleId => {
+                       {member.trained_roles && member.trained_roles.map(roleId => {
                          const role = getRoleById(roleId);
                          return role ? (
                            <Chip
@@ -622,11 +665,11 @@ function StaffTab() {
             {timeOffRequests.map((request) => (
               <ListItem key={request.id} divider>
                 <ListItemText
-                  primary={getStaffName(request.staffId)}
+                  primary={getStaffName(request.staff_id)}
                   secondary={
                     <Box>
                       <Typography variant="body2">
-                        {format(new Date(request.startDate), 'MMM dd, yyyy')} - {format(new Date(request.endDate), 'MMM dd, yyyy')}
+                        {format(new Date(request.start_date), 'MMM dd, yyyy')} - {format(new Date(request.end_date), 'MMM dd, yyyy')}
                       </Typography>
                       {request.reason && (
                         <Typography variant="body2" color="text.secondary">
