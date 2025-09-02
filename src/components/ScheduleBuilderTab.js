@@ -43,6 +43,7 @@ import {
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
+import { scheduleHelpers } from '../lib/supabaseHelpers';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import DroppableRole from './DroppableRole';
 import TourDisplay from './TourDisplay';
@@ -106,23 +107,27 @@ function ScheduleBuilderTab() {
     }
   };
 
-  const saveWeekSchedule = () => {
+  const saveWeekSchedule = async () => {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     const scheduleData = {
-      id: Date.now().toString(),
-      weekKey,
-      weekStart: weekStart.toISOString(),
+      week_start: weekStart.toISOString(),
       days: weekSchedule,
-      createdAt: new Date().toISOString(),
     };
 
-    const existingIndex = schedules.findIndex(s => s.weekKey === weekKey);
-    if (existingIndex >= 0) {
-      const updatedSchedules = [...schedules];
-      updatedSchedules[existingIndex] = scheduleData;
-      dispatch({ type: 'SET_SCHEDULES', payload: updatedSchedules });
-    } else {
-      dispatch({ type: 'ADD_SCHEDULE', payload: scheduleData });
+    try {
+      const existingSchedule = schedules.find(s => s.weekKey === weekKey);
+      if (existingSchedule) {
+        // Update existing schedule
+        const updatedSchedule = await scheduleHelpers.update(existingSchedule.id, scheduleData);
+        dispatch({ type: 'UPDATE_SCHEDULE', payload: updatedSchedule });
+      } else {
+        // Create new schedule
+        const newSchedule = await scheduleHelpers.add(scheduleData);
+        dispatch({ type: 'ADD_SCHEDULE', payload: newSchedule });
+      }
+    } catch (error) {
+      console.error('Error saving schedule:', error);
+      alert(`Error saving schedule: ${error.message}. Please try again.`);
     }
   };
 
