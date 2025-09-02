@@ -157,7 +157,7 @@ function ScheduleBuilderTab() {
 
     // Check availability
     const dayOfWeek = DAYS_OF_WEEK[day.getDay() === 0 ? 6 : day.getDay() - 1];
-    if (!staffMember.availability.includes(dayOfWeek)) {
+    if (!(staffMember.availability || []).includes(dayOfWeek)) {
       conflicts.push('Not available on this day');
     }
 
@@ -198,7 +198,7 @@ function ScheduleBuilderTab() {
     }
 
     // Check role training
-    if (!staffMember.trainedRoles.includes(roleId)) {
+    if (!(staffMember.trained_roles || staffMember.trainedRoles || []).includes(roleId)) {
       conflicts.push('Not trained for this role');
     }
 
@@ -436,7 +436,7 @@ function ScheduleBuilderTab() {
      const staffMember = getStaffById(staffId);
      const role = getRoleById(roleId);
     
-    if (staffMember && role && !staffMember.trainedRoles.includes(roleId)) {
+    if (staffMember && role && !(staffMember.trained_roles || staffMember.trainedRoles || []).includes(roleId)) {
       alert(`Warning: ${staffMember.name} is not trained for ${role.name}. Assignment allowed but may cause issues.`);
     }
     
@@ -628,8 +628,8 @@ function ScheduleBuilderTab() {
               const staffMember = getStaffById(s.id);
               if (!staffMember) return false;
               
-              return staffMember.trainedRoles.includes(roleId) &&
-                     staffMember.availability.includes(DAYS_OF_WEEK[new Date(dayKey).getDay() === 0 ? 6 : new Date(dayKey).getDay() - 1]) &&
+              return (staffMember.trained_roles || staffMember.trainedRoles || []).includes(roleId) &&
+                     (staffMember.availability || []).includes(DAYS_OF_WEEK[new Date(dayKey).getDay() === 0 ? 6 : new Date(dayKey).getDay() - 1]) &&
                      !dayAssignedStaff.has(s.id); // Not already assigned on this day
             })
             .sort((a, b) => {
