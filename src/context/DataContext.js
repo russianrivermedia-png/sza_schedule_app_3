@@ -188,6 +188,12 @@ export function DataProvider({ children }) {
         // Extract week info from the days column
         const weekKey = schedule.days?.week_key || format(new Date(), 'yyyy-MM-dd');
         const weekStart = schedule.days?.week_start || new Date().toISOString();
+        console.log('Processing schedule:', { 
+          id: schedule.id, 
+          weekKey, 
+          days: schedule.days,
+          hasWeekKey: !!schedule.days?.week_key 
+        });
         return {
           ...schedule,
           weekKey,
@@ -258,6 +264,12 @@ export function DataProvider({ children }) {
           if (payload.new.days && typeof payload.new.days === 'object') {
             const weekKey = payload.new.days?.week_key || format(new Date(), 'yyyy-MM-dd');
             const weekStart = payload.new.days?.week_start || new Date().toISOString();
+            console.log('Real-time INSERT schedule:', { 
+              id: payload.new.id, 
+              weekKey, 
+              days: payload.new.days,
+              hasWeekKey: !!payload.new.days?.week_key 
+            });
             const transformedSchedule = {
               ...payload.new,
               weekKey,

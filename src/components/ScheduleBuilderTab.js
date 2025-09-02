@@ -111,6 +111,8 @@ function ScheduleBuilderTab() {
     console.log('Full schedule objects:', schedules);
     const existingSchedule = schedules.find(s => s.weekKey === weekKey);
     console.log('Found schedule:', existingSchedule);
+    console.log('Looking for weekKey:', weekKey);
+    console.log('Available weekKeys:', schedules.map(s => s.weekKey));
     if (existingSchedule) {
       console.log('Setting week schedule to:', existingSchedule.days);
       // Extract the actual schedule data, excluding the metadata
