@@ -228,7 +228,7 @@ function ScheduleBuilderTab() {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           shiftId,
           name: shift.name,
-          requiredRoles: shift.requiredRoles,
+          requiredRoles: shift.required_roles || shift.requiredRoles || [],
           tours: shift.tours || [],
           tourColors: {},
           staffColors: {},
@@ -291,13 +291,13 @@ function ScheduleBuilderTab() {
     const shift = daySchedule.shifts[shiftIndex];
     
     // Check if role is already in the shift
-    if (shift.requiredRoles.includes(roleId)) {
+    if ((shift.required_roles || shift.requiredRoles || []).includes(roleId)) {
       return; // Role already exists
     }
     
     const updatedShift = {
       ...shift,
-      requiredRoles: [...shift.requiredRoles, roleId]
+      requiredRoles: [...(shift.required_roles || shift.requiredRoles || []), roleId]
     };
     
     const updatedShifts = [...daySchedule.shifts];
@@ -612,7 +612,7 @@ function ScheduleBuilderTab() {
       day.shifts.forEach((shift, shiftIndex) => {
         const updatedAssignedStaff = { ...shift.assignedStaff };
         
-        shift.requiredRoles.forEach(roleId => {
+        (shift.required_roles || shift.requiredRoles || []).forEach(roleId => {
           totalRoles++;
           
           // Check if role is already assigned (preserve existing assignments)
@@ -793,7 +793,7 @@ function ScheduleBuilderTab() {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {shift.requiredRoles.map(roleId => {
+                        {(shift.required_roles || shift.requiredRoles || []).map(roleId => {
                               const role = getRoleById(roleId);
                           const assignedStaffId = shift.assignedStaff[roleId];
                               const assignedStaff = getStaffById(assignedStaffId);
@@ -923,7 +923,7 @@ function ScheduleBuilderTab() {
                   </Box>
 
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
-                    {shift.requiredRoles.map(roleId => {
+                    {(shift.required_roles || shift.requiredRoles || []).map(roleId => {
                       const role = getRoleById(roleId);
                       const assignedStaffId = shift.assignedStaff[roleId];
                       const assignedStaff = getStaffById(assignedStaffId);
@@ -1039,7 +1039,7 @@ function ScheduleBuilderTab() {
                    {/* Assignment Status Summary */}
           {(() => {
             const totalRoles = Object.values(weekSchedule).flatMap(day => 
-              day.shifts?.flatMap(shift => shift.requiredRoles) || []
+              day.shifts?.flatMap(shift => shift.required_roles || shift.requiredRoles || []) || []
             ).length;
             const assignedRoles = Object.values(weekSchedule).flatMap(day => 
               day.shifts?.flatMap(shift => Object.values(shift.assignedStaff)) || []
@@ -1197,7 +1197,7 @@ function ScheduleBuilderTab() {
                         {shift.name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {shift.requiredRoles.length} role{shift.requiredRoles.length !== 1 ? 's' : ''} required
+                        {(shift.required_roles || shift.requiredRoles || []).length} role{(shift.required_roles || shift.requiredRoles || []).length !== 1 ? 's' : ''} required
                         {shift.tours && shift.tours.length > 0 && ` • ${shift.tours.length} tour${shift.tours.length !== 1 ? 's' : ''} attached`}
                       </Typography>
                     </Box>
@@ -1268,7 +1268,7 @@ function ScheduleBuilderTab() {
                     label="Select Role to Add"
                   >
                     {roles
-                      .filter(role => !selectedShiftData?.requiredRoles?.includes(role.id))
+                      .filter(role => !(selectedShiftData?.required_roles || selectedShiftData?.requiredRoles || [])?.includes(role.id))
                       .map(role => (
                         <MenuItem key={role.id} value={role.id}>
                           {role.name}
@@ -1276,10 +1276,10 @@ function ScheduleBuilderTab() {
                       ))}
                   </Select>
                 </FormControl>
-                {selectedShiftData?.requiredRoles && selectedShiftData.requiredRoles.length > 0 && (
+                {selectedShiftData?.required_roles && (selectedShiftData.required_roles || selectedShiftData.requiredRoles || []).length > 0 && (
                   <Alert severity="info" sx={{ mt: 2 }}>
                     <Typography variant="body2">
-                      <strong>Current roles:</strong> {selectedShiftData.requiredRoles.map(roleId => {
+                      <strong>Current roles:</strong> {(selectedShiftData.required_roles || selectedShiftData.requiredRoles || []).map(roleId => {
                         const role = (roles || []).find(r => r.id === roleId);
                         return role?.name || 'Unknown Role';
                       }).join(', ')}
