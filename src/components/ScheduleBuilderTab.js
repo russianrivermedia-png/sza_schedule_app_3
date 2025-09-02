@@ -60,6 +60,7 @@ function ScheduleBuilderTab() {
     timeOffRequests, 
     currentWeek, 
     dispatch,
+    loading,
     // Use optimized lookup functions
     getStaffById,
     getRoleById,
@@ -725,8 +726,8 @@ function ScheduleBuilderTab() {
   };
 
   const getShiftTours = (shift) => {
-    if (!shift.tours || shift.tours.length === 0) return [];
-    return shift.tours.map(tourId => (tours || []).find(t => t.id === tourId)).filter(Boolean);
+    if (!shift.tours || (shift.tours || []).length === 0) return [];
+    return (shift.tours || []).map(tourId => (tours || []).find(t => t.id === tourId)).filter(Boolean);
   };
 
   const renderScheduleTable = (day, dayIndex) => {
@@ -746,10 +747,10 @@ function ScheduleBuilderTab() {
 
          // Separate shifts with tours from those without and sort alphabetically
      const shiftsWithTours = daySchedule.shifts
-       .filter(shift => shift.tours && shift.tours.length > 0)
+       .filter(shift => (shift.tours || []).length > 0)
        .sort((a, b) => a.name.localeCompare(b.name));
      const shiftsWithoutTours = daySchedule.shifts
-       .filter(shift => !shift.tours || shift.tours.length === 0)
+       .filter(shift => (shift.tours || []).length === 0)
        .sort((a, b) => a.name.localeCompare(b.name));
 
     return (
@@ -983,6 +984,15 @@ function ScheduleBuilderTab() {
     );
   };
 
+  // Show loading state while data is being fetched
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+        <Typography variant="h6">Loading schedule data...</Typography>
+      </Box>
+    );
+  }
+
   return (
     <DndProvider backend={HTML5Backend}>
       <Box>
@@ -1198,7 +1208,7 @@ function ScheduleBuilderTab() {
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         {(shift.required_roles || shift.requiredRoles || []).length} role{(shift.required_roles || shift.requiredRoles || []).length !== 1 ? 's' : ''} required
-                        {shift.tours && shift.tours.length > 0 && ` • ${shift.tours.length} tour${shift.tours.length !== 1 ? 's' : ''} attached`}
+                        {(shift.tours || []).length > 0 && ` • ${(shift.tours || []).length} tour${(shift.tours || []).length !== 1 ? 's' : ''} attached`}
                       </Typography>
                     </Box>
                   </Box>
