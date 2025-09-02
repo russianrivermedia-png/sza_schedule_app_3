@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { format } from 'date-fns';
 
 const DataContext = createContext();
 
@@ -182,7 +183,12 @@ export function DataProvider({ children }) {
       dispatch({ type: 'SET_ROLES', payload: rolesResult.data || [] });
       dispatch({ type: 'SET_SHIFTS', payload: shiftsResult.data || [] });
       dispatch({ type: 'SET_TOURS', payload: toursResult.data || [] });
-      dispatch({ type: 'SET_SCHEDULES', payload: schedulesResult.data || [] });
+      // Transform schedules data to include weekKey for compatibility
+      const transformedSchedules = (schedulesResult.data || []).map(schedule => ({
+        ...schedule,
+        weekKey: format(new Date(schedule.week_start), 'yyyy-MM-dd')
+      }));
+      dispatch({ type: 'SET_SCHEDULES', payload: transformedSchedules });
       dispatch({ type: 'SET_TIME_OFF_REQUESTS', payload: timeOffResult.data || [] });
 
       } catch (error) {
@@ -243,9 +249,17 @@ export function DataProvider({ children }) {
 
       supabase.channel('schedules').on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, (payload) => {
         if (payload.eventType === 'INSERT') {
-          dispatch({ type: 'ADD_SCHEDULE', payload: payload.new });
+          const transformedSchedule = {
+            ...payload.new,
+            weekKey: format(new Date(payload.new.week_start), 'yyyy-MM-dd')
+          };
+          dispatch({ type: 'ADD_SCHEDULE', payload: transformedSchedule });
         } else if (payload.eventType === 'UPDATE') {
-          dispatch({ type: 'UPDATE_SCHEDULE', payload: payload.new });
+          const transformedSchedule = {
+            ...payload.new,
+            weekKey: format(new Date(payload.new.week_start), 'yyyy-MM-dd')
+          };
+          dispatch({ type: 'UPDATE_SCHEDULE', payload: transformedSchedule });
         } else if (payload.eventType === 'DELETE') {
           dispatch({ type: 'DELETE_SCHEDULE', payload: payload.old.id });
         }
