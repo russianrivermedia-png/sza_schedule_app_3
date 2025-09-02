@@ -318,14 +318,18 @@ function ScheduleBuilderTab() {
   const handleStaffDrop = (day, shiftIndex, roleId, staffId) => {
     const dayKey = format(day, 'yyyy-MM-dd');
     const daySchedule = weekSchedule[dayKey];
+    if (!daySchedule || !daySchedule.shifts || !daySchedule.shifts[shiftIndex]) {
+      console.error('Invalid day schedule or shift:', { dayKey, daySchedule, shiftIndex });
+      return;
+    }
     const shift = daySchedule.shifts[shiftIndex];
     
     // Check if role is already filled
-    const existingStaffId = shift.assignedStaff[roleId];
+    const existingStaffId = (shift.assignedStaff || {})[roleId];
     
     // Check if staff is already assigned elsewhere on this day
-    const isAlreadyAssignedToday = Object.values(daySchedule.shifts).some(dayShift => 
-      Object.values(dayShift.assignedStaff).includes(staffId)
+    const isAlreadyAssignedToday = daySchedule.shifts.some(dayShift => 
+      Object.values(dayShift.assignedStaff || {}).includes(staffId)
     );
     
     // If this is a swap (both roles have staff), handle it properly
@@ -334,8 +338,8 @@ function ScheduleBuilderTab() {
       let currentShiftIndex = -1;
       let currentRoleId = '';
       
-      Object.values(daySchedule.shifts).forEach((dayShift, idx) => {
-        Object.entries(dayShift.assignedStaff).forEach(([roleId, assignedStaffId]) => {
+      daySchedule.shifts.forEach((dayShift, idx) => {
+        Object.entries(dayShift.assignedStaff || {}).forEach(([roleId, assignedStaffId]) => {
           if (assignedStaffId === staffId) {
             currentShiftIndex = idx;
             currentRoleId = roleId;
