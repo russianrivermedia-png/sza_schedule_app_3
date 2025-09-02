@@ -160,13 +160,15 @@ function ScheduleBuilderTab() {
         console.log('Updating existing schedule...');
         const updatedSchedule = await scheduleHelpers.update(existingSchedule.id, scheduleData);
         console.log('Updated schedule:', updatedSchedule);
-        dispatch({ type: 'UPDATE_SCHEDULE', payload: updatedSchedule });
+        // Don't dispatch manually - let real-time subscription handle it
+        // dispatch({ type: 'UPDATE_SCHEDULE', payload: updatedSchedule });
       } else {
         // Create new schedule
         console.log('Creating new schedule...');
         const newSchedule = await scheduleHelpers.add(scheduleData);
         console.log('New schedule created:', newSchedule);
-        dispatch({ type: 'ADD_SCHEDULE', payload: newSchedule });
+        // Don't dispatch manually - let real-time subscription handle it
+        // dispatch({ type: 'ADD_SCHEDULE', payload: newSchedule });
       }
     } catch (error) {
       console.error('Error saving schedule:', error);

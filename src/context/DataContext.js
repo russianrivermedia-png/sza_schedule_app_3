@@ -281,6 +281,12 @@ export function DataProvider({ children }) {
           if (payload.new.days && typeof payload.new.days === 'object') {
             const weekKey = payload.new.days?.week_key || format(new Date(), 'yyyy-MM-dd');
             const weekStart = payload.new.days?.week_start || new Date().toISOString();
+            console.log('Real-time UPDATE schedule:', { 
+              id: payload.new.id, 
+              weekKey, 
+              days: payload.new.days,
+              hasWeekKey: !!payload.new.days?.week_key 
+            });
             const transformedSchedule = {
               ...payload.new,
               weekKey,
