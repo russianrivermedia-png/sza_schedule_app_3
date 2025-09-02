@@ -100,10 +100,15 @@ function ScheduleBuilderTab() {
 
   const loadWeekSchedule = () => {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
+    console.log('Loading week schedule for:', weekKey);
+    console.log('Available schedules:', schedules);
     const existingSchedule = schedules.find(s => s.weekKey === weekKey);
+    console.log('Found schedule:', existingSchedule);
     if (existingSchedule) {
+      console.log('Setting week schedule to:', existingSchedule.days);
       setWeekSchedule(existingSchedule.days || {});
     } else {
+      console.log('No schedule found, setting empty');
       setWeekSchedule({});
     }
   };
@@ -114,6 +119,7 @@ function ScheduleBuilderTab() {
       week_start: weekStart.toISOString(),
       days: weekSchedule,
     };
+    console.log('Saving schedule data:', scheduleData);
 
     try {
       const existingSchedule = schedules.find(s => s.weekKey === weekKey);
