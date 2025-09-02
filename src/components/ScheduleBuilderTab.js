@@ -76,6 +76,7 @@ function ScheduleBuilderTab() {
   const [selectedShiftData, setSelectedShiftData] = useState(null);
   const [notes, setNotes] = useState('');
   const [expandedNotes, setExpandedNotes] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
 
   // Shift assignment state
   const [selectedShifts, setSelectedShifts] = useState([]);
@@ -96,7 +97,7 @@ function ScheduleBuilderTab() {
 
   useEffect(() => {
     loadWeekSchedule();
-  }, [selectedWeek, schedules]);
+  }, [selectedWeek, schedules, isSaving]);
 
   // Debug: Log when schedules change
   useEffect(() => {
@@ -113,14 +114,21 @@ function ScheduleBuilderTab() {
     console.log('Found schedule:', existingSchedule);
     console.log('Looking for weekKey:', weekKey);
     console.log('Available weekKeys:', schedules.map(s => s.weekKey));
+    console.log('Is saving:', isSaving);
+    
     if (existingSchedule) {
       console.log('Setting week schedule to:', existingSchedule.days);
       // Extract the actual schedule data, excluding the metadata
       const { week_start, week_key, ...scheduleData } = existingSchedule.days || {};
       setWeekSchedule(scheduleData);
     } else {
-      console.log('No schedule found, setting empty');
-      setWeekSchedule({});
+      // Only clear the schedule if we're not currently saving
+      if (!isSaving) {
+        console.log('No schedule found, setting empty');
+        setWeekSchedule({});
+      } else {
+        console.log('No schedule found but currently saving, keeping current schedule');
+      }
     }
   };
 
@@ -135,6 +143,7 @@ function ScheduleBuilderTab() {
     };
     console.log('Saving schedule data:', scheduleData);
 
+    setIsSaving(true);
     try {
       const existingSchedule = schedules.find(s => s.weekKey === weekKey);
       if (existingSchedule) {
@@ -149,6 +158,8 @@ function ScheduleBuilderTab() {
     } catch (error) {
       console.error('Error saving schedule:', error);
       alert(`Error saving schedule: ${error.message}. Please try again.`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
