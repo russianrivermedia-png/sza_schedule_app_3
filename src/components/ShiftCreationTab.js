@@ -103,22 +103,22 @@ function ShiftCreationTab() {
     if (!formData.name.trim() || formData.requiredRoles.length === 0) return;
 
     try {
-      const shiftData = {
-        name: formData.name.trim(),
+    const shiftData = {
+      name: formData.name.trim(),
         description: formData.description.trim() || null,
         required_roles: formData.requiredRoles,
-        tours: formData.tours,
-      };
+      tours: formData.tours,
+    };
 
-      if (editingShift) {
+    if (editingShift) {
         const updatedShift = await shiftHelpers.update(editingShift.id, shiftData);
         dispatch({ type: 'UPDATE_SHIFT', payload: updatedShift });
-      } else {
+    } else {
         const newShift = await shiftHelpers.add(shiftData);
         dispatch({ type: 'ADD_SHIFT', payload: newShift });
-      }
+    }
 
-      handleCloseDialog();
+    handleCloseDialog();
     } catch (error) {
       console.error('Error saving shift:', error);
       alert(`Error saving shift: ${error.message}. Please try again.`);
@@ -129,7 +129,7 @@ function ShiftCreationTab() {
     if (window.confirm('Are you sure you want to delete this shift? This will affect all schedules using this shift.')) {
       try {
         await shiftHelpers.delete(shiftId);
-        dispatch({ type: 'DELETE_SHIFT', payload: shiftId });
+      dispatch({ type: 'DELETE_SHIFT', payload: shiftId });
       } catch (error) {
         console.error('Error deleting shift:', error);
         alert(`Error deleting shift: ${error.message}. Please try again.`);
@@ -256,7 +256,7 @@ function ShiftCreationTab() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
-          <Typography variant="h4">Shift Management</Typography>
+        <Typography variant="h4">Shift Management</Typography>
           <Typography variant="body2" color="text.secondary">
             {shifts.length} shift{shifts.length !== 1 ? 's' : ''} created
           </Typography>
@@ -391,7 +391,7 @@ function ShiftCreationTab() {
         <DialogTitle>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">
-              {editingShift ? 'Edit Shift' : 'Add New Shift'}
+          {editingShift ? 'Edit Shift' : 'Add New Shift'}
             </Typography>
             {!editingShift && (
               <FormControlLabel
@@ -409,84 +409,84 @@ function ShiftCreationTab() {
         <DialogContent>
           {!bulkMode ? (
             // Single shift creation
-            <Box sx={{ pt: 1 }}>
-              <TextField
-                fullWidth
-                label="Shift Name *"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          <Box sx={{ pt: 1 }}>
+            <TextField
+              fullWidth
+              label="Shift Name *"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 onKeyPress={handleKeyPress}
                 inputRef={shiftNameInputRef}
-                margin="normal"
-                required
-              />
-              <TextField
-                fullWidth
-                label="Description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                margin="normal"
-                multiline
-                rows={3}
-              />
-              <FormControl fullWidth margin="normal" required>
-                <InputLabel>Required Roles *</InputLabel>
-                <Select
-                  multiple
-                  value={formData.requiredRoles}
-                  onChange={handleRoleChange}
-                  label="Required Roles *"
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {selected.map((value) => {
-                        const role = roles.find(r => r.id === value);
-                        return role ? (
-                          <Chip key={value} label={role.name} size="small" />
-                        ) : null;
-                      })}
-                    </Box>
-                  )}
-                >
-                  {roles.map((role) => (
-                    <MenuItem key={role.id} value={role.id}>
-                      {role.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              margin="normal"
+              required
+            />
+            <TextField
+              fullWidth
+              label="Description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              margin="normal"
+              multiline
+              rows={3}
+            />
+            <FormControl fullWidth margin="normal" required>
+              <InputLabel>Required Roles *</InputLabel>
+              <Select
+                multiple
+                value={formData.requiredRoles}
+                onChange={handleRoleChange}
+                label="Required Roles *"
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => {
+                      const role = roles.find(r => r.id === value);
+                      return role ? (
+                        <Chip key={value} label={role.name} size="small" />
+                      ) : null;
+                    })}
+                  </Box>
+                )}
+              >
+                {roles.map((role) => (
+                  <MenuItem key={role.id} value={role.id}>
+                    {role.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Attach Tours (Optional)</InputLabel>
-                <Select
-                  multiple
-                  value={formData.tours}
-                  onChange={handleTourChange}
-                  label="Attach Tours (Optional)"
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {selected.map((value) => {
-                        const tour = tours.find(t => t.id === value);
-                        return tour ? (
-                          <Chip key={value} label={tour.name} size="small" color="secondary" />
-                        ) : null;
-                      })}
-                    </Box>
-                  )}
-                >
-                  {tours.map((tour) => (
-                    <MenuItem key={tour.id} value={tour.id}>
-                      {tour.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Attach Tours (Optional)</InputLabel>
+              <Select
+                multiple
+                value={formData.tours}
+                onChange={handleTourChange}
+                label="Attach Tours (Optional)"
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => {
+                      const tour = tours.find(t => t.id === value);
+                      return tour ? (
+                        <Chip key={value} label={tour.name} size="small" color="secondary" />
+                      ) : null;
+                    })}
+                  </Box>
+                )}
+              >
+                {tours.map((tour) => (
+                  <MenuItem key={tour.id} value={tour.id}>
+                    {tour.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-              {formData.requiredRoles.length === 0 && (
-                <Alert severity="warning" sx={{ mt: 2 }}>
-                  Please select at least one required role for this shift.
-                </Alert>
-              )}
-            </Box>
+            {formData.requiredRoles.length === 0 && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                Please select at least one required role for this shift.
+              </Alert>
+            )}
+          </Box>
           ) : (
             // Bulk shift creation
             <Box sx={{ pt: 1 }}>
@@ -649,13 +649,13 @@ function ShiftCreationTab() {
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
           {!bulkMode ? (
-            <Button 
-              onClick={handleSubmit} 
-              variant="contained"
-              disabled={!formData.name.trim() || formData.requiredRoles.length === 0}
-            >
-              {editingShift ? 'Update' : 'Add'}
-            </Button>
+          <Button 
+            onClick={handleSubmit} 
+            variant="contained"
+            disabled={!formData.name.trim() || formData.requiredRoles.length === 0}
+          >
+            {editingShift ? 'Update' : 'Add'}
+          </Button>
           ) : (
             <Button 
               onClick={handleBulkSubmit} 
