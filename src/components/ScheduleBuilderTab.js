@@ -876,6 +876,8 @@ function ScheduleBuilderTab() {
           </TableHead>
           <TableBody>
                 {shiftsWithTours.map((shift, shiftIndex) => {
+              // Find the actual index in the original daySchedule.shifts array
+              const actualShiftIndex = daySchedule.shifts.findIndex(s => s.id === shift.id);
               const shiftTemplate = (shifts || []).find(s => s.id === shift.shiftId);
               const shiftTours = getShiftTours(shift);
               const hasNotes = shift.notes && shift.notes.trim().length > 0;
@@ -887,7 +889,7 @@ function ScheduleBuilderTab() {
                       <TextField
                         size="small"
                         value={shift.arrivalTime || ''}
-                        onChange={(e) => handleArrivalTimeChange(day, shiftIndex, e.target.value)}
+                        onChange={(e) => handleArrivalTimeChange(day, actualShiftIndex, e.target.value)}
                         placeholder="9:00 AM"
                         sx={{ width: '100%' }}
                       />
@@ -922,9 +924,9 @@ function ScheduleBuilderTab() {
                                 role={role}
                                 assignedStaff={assignedStaff}
                                 conflicts={conflicts}
-                                onStaffDrop={(staffId) => handleStaffDrop(day, shiftIndex, roleId, staffId)}
-                                onRemoveStaff={() => removeStaffFromRole(day, shiftIndex, roleId)}
-                                    onStaffColorChange={(staffId, color) => handleStaffColorChange(day, shiftIndex, staffId, color)}
+                                onStaffDrop={(staffId) => handleStaffDrop(day, actualShiftIndex, roleId, staffId)}
+                                onRemoveStaff={() => removeStaffFromRole(day, actualShiftIndex, roleId)}
+                                    onStaffColorChange={(staffId, color) => handleStaffColorChange(day, actualShiftIndex, staffId, color)}
                                     staffColor={shift.staffColors?.[assignedStaffId] || 'gray'}
                                     staff={staff}
                                     roles={roles}
@@ -947,7 +949,7 @@ function ScheduleBuilderTab() {
                       <TourDisplay
                         tours={shiftTours}
                         tourColors={shift.tourColors}
-                        onTourColorChange={(tourId, color) => handleTourColorChange(day, shiftIndex, tourId, color)}
+                        onTourColorChange={(tourId, color) => handleTourColorChange(day, actualShiftIndex, tourId, color)}
                         size="small"
                       />
                     </TableCell>
@@ -957,7 +959,7 @@ function ScheduleBuilderTab() {
                           <IconButton
                             size="small"
                             color="warning"
-                            onClick={() => handleOpenNotesDialog(day, shiftIndex, shift)}
+                            onClick={() => handleOpenNotesDialog(day, actualShiftIndex, shift)}
                           >
                             <NotesIcon />
                           </IconButton>
@@ -969,7 +971,7 @@ function ScheduleBuilderTab() {
                         size="small"
                             onClick={(event) => {
                               setSelectedDay(day);
-                              setSelectedShiftIndex(shiftIndex);
+                              setSelectedShiftIndex(actualShiftIndex);
                               setSelectedShiftData(shift);
                               setNotes(shift.notes || '');
                               setActionsMenuAnchor(event.currentTarget);
