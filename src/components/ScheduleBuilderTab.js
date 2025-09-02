@@ -135,7 +135,7 @@ function ScheduleBuilderTab() {
               assignedStaff: shift.assignedStaff || {}
             }))
           };
-        } else {
+    } else {
           normalizedScheduleData[dayKey] = dayData;
         }
       });
@@ -365,9 +365,6 @@ function ScheduleBuilderTab() {
 
   const handleStaffDrop = (day, shiftIndex, roleId, staffId) => {
     try {
-      console.log('=== HANDLE STAFF DROP CALLED ===');
-      console.log('Parameters:', { day: format(day, 'yyyy-MM-dd'), shiftIndex, roleId, staffId });
-    
     const dayKey = format(day, 'yyyy-MM-dd');
     const daySchedule = weekSchedule[dayKey];
     if (!daySchedule || !daySchedule.shifts || !daySchedule.shifts[shiftIndex]) {
@@ -375,58 +372,32 @@ function ScheduleBuilderTab() {
       return;
     }
     const shift = daySchedule.shifts[shiftIndex];
-    console.log('Current shift:', shift);
-    console.log('Shift assignedStaff object:', shift.assignedStaff);
-    console.log('Looking for roleId:', roleId);
     
     // Check if role is already filled
-    console.log('About to check existing staff ID...');
     const existingStaffId = (shift.assignedStaff || {})[roleId];
-    console.log('Existing staff ID for role:', existingStaffId);
     
     // Check if staff is already assigned elsewhere on this day
-    console.log('Checking if staff is already assigned today...');
-    console.log('Staff ID to check:', staffId);
-    console.log('All shifts for this day:', daySchedule.shifts);
-    
     const isAlreadyAssignedToday = daySchedule.shifts.some(dayShift => 
       Object.values(dayShift.assignedStaff || {}).includes(staffId)
     );
-    console.log('Is staff already assigned today:', isAlreadyAssignedToday);
-    
-    // Let's also check which specific shifts have this staff assigned
-    daySchedule.shifts.forEach((dayShift, idx) => {
-      const assignedStaffIds = Object.values(dayShift.assignedStaff || {});
-      if (assignedStaffIds.includes(staffId)) {
-        console.log(`Staff ${staffId} is assigned to shift ${idx}:`, dayShift.assignedStaff);
-      }
-    });
     
     // If this is a swap (both roles have staff), handle it properly
     if (existingStaffId && isAlreadyAssignedToday) {
-      console.log('Handling staff swap...');
       // Find where the staff being dropped is currently assigned
       let currentShiftIndex = -1;
       let currentRoleId = '';
       
-      console.log('Searching for current assignment of staff:', staffId);
       daySchedule.shifts.forEach((dayShift, idx) => {
-        console.log(`Checking shift ${idx}:`, dayShift.assignedStaff);
         Object.entries(dayShift.assignedStaff || {}).forEach(([roleId, assignedStaffId]) => {
-          console.log(`  Role ${roleId}: ${assignedStaffId}`);
           if (assignedStaffId === staffId) {
-            console.log(`  Found match! Setting currentShiftIndex=${idx}, currentRoleId=${roleId}`);
             currentShiftIndex = idx;
             currentRoleId = roleId;
           }
         });
       });
       
-      console.log('Swap search results:', { currentShiftIndex, currentRoleId });
-      
       // Only perform swap if we found the staff in a different shift/role
       if (currentShiftIndex !== -1 && (currentShiftIndex !== shiftIndex || currentRoleId !== roleId)) {
-        console.log('Performing staff swap...');
         // This is a staff swap - both staff members switch positions
         const updatedShifts = [...daySchedule.shifts];
         
@@ -462,15 +433,11 @@ function ScheduleBuilderTab() {
           [dayKey]: updatedDay
         }));
         
-        console.log('Staff swap completed successfully');
         return; // Exit early - swap is complete
-      } else {
-        console.log('Not a true swap - staff is already in this role or not found elsewhere');
       }
     }
     
     // If not a swap, handle as replacement
-    console.log('Not a swap - handling as replacement');
     if (isAlreadyAssignedToday && !existingStaffId) {
       // Staff is assigned elsewhere today but not in this specific role
       const staffMember = (staff || []).find(s => s.id === staffId);
@@ -496,23 +463,19 @@ function ScheduleBuilderTab() {
     }
     
     let updatedAssignedStaff = { ...shift.assignedStaff };
-    console.log('Initial updatedAssignedStaff:', updatedAssignedStaff);
     
     if (existingStaffId) {
       // One-to-one swap: existing staff goes back to staff panel
       if (existingStaffId === staffId) {
-        console.log('Same staff, no change needed');
         return; // Same staff, no change
       }
       
       // Remove existing staff from this role (they go back to staff panel)
       delete updatedAssignedStaff[roleId];
-      console.log('Removed existing staff, updatedAssignedStaff:', updatedAssignedStaff);
     }
     
     // Assign new staff to the role
     updatedAssignedStaff[roleId] = staffId;
-    console.log('Assigned new staff, final updatedAssignedStaff:', updatedAssignedStaff);
     
     // Increment shift count for the assigned staff member
     if (staffId && (!existingStaffId || existingStaffId !== staffId)) {
@@ -907,16 +870,7 @@ function ScheduleBuilderTab() {
                               const assignedStaff = getStaffById(assignedStaffId);
                           const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
                           
-                          // Debug logging
-                          console.log('Rendering DroppableRole:', {
-                            roleName: role?.name,
-                            roleId,
-                            assignedStaffId,
-                            assignedStaffName: assignedStaff?.name || 'none',
-                            assignedStaffObject: assignedStaff,
-                            shiftAssignedStaff: shift.assignedStaff,
-                            onStaffDropFunction: typeof ((staffId) => handleStaffDrop(day, shiftIndex, roleId, staffId))
-                          });
+
                           
                           return (
                             <Box key={roleId} sx={{ mb: 1 }}>
