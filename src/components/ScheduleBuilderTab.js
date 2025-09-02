@@ -130,7 +130,7 @@ function ScheduleBuilderTab() {
       if (existingSchedule) {
         // Update existing schedule
         await scheduleHelpers.update(existingSchedule.id, scheduleData);
-      } else {
+    } else {
         // Create new schedule
         await scheduleHelpers.add(scheduleData);
       }
@@ -341,6 +341,8 @@ function ScheduleBuilderTab() {
     }
     const shift = daySchedule.shifts[shiftIndex];
     console.log('Current shift:', shift);
+    console.log('Shift assignedStaff object:', shift.assignedStaff);
+    console.log('Looking for roleId:', roleId);
     
     // Check if role is already filled
     console.log('About to check existing staff ID...');
@@ -360,16 +362,23 @@ function ScheduleBuilderTab() {
       let currentShiftIndex = -1;
       let currentRoleId = '';
       
+      console.log('Searching for current assignment of staff:', staffId);
       daySchedule.shifts.forEach((dayShift, idx) => {
+        console.log(`Checking shift ${idx}:`, dayShift.assignedStaff);
         Object.entries(dayShift.assignedStaff || {}).forEach(([roleId, assignedStaffId]) => {
+          console.log(`  Role ${roleId}: ${assignedStaffId}`);
           if (assignedStaffId === staffId) {
+            console.log(`  Found match! Setting currentShiftIndex=${idx}, currentRoleId=${roleId}`);
             currentShiftIndex = idx;
             currentRoleId = roleId;
           }
         });
       });
       
+      console.log('Swap search results:', { currentShiftIndex, currentRoleId });
+      
       if (currentShiftIndex !== -1) {
+        console.log('Performing staff swap...');
         // This is a staff swap - both staff members switch positions
         const updatedShifts = [...daySchedule.shifts];
         
@@ -405,6 +414,7 @@ function ScheduleBuilderTab() {
           [dayKey]: updatedDay
         }));
         
+        console.log('Staff swap completed successfully');
         return; // Exit early - swap is complete
       }
     }
