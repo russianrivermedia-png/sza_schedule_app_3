@@ -105,13 +105,48 @@ function ScheduleBuilderTab() {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     const existingSchedule = schedules.find(s => s.weekKey === weekKey);
     
+    console.log('=== LOAD WEEK SCHEDULE ===');
+    console.log('Loading week schedule for:', weekKey);
+    console.log('Available schedules:', schedules);
+    console.log('Schedule weekKeys:', schedules.map(s => s.weekKey));
+    console.log('Full schedule objects:', schedules);
+    console.log('Found schedule:', existingSchedule);
+    
     if (existingSchedule) {
       // Extract the actual schedule data, excluding the metadata
       const { week_start, week_key, ...scheduleData } = existingSchedule.days || {};
-      setWeekSchedule(scheduleData);
+      
+      console.log('Raw schedule data:', scheduleData);
+      
+      // Ensure all shifts have properly initialized assignedStaff objects
+      const normalizedScheduleData = {};
+      Object.keys(scheduleData).forEach(dayKey => {
+        const dayData = scheduleData[dayKey];
+        if (dayData && dayData.shifts) {
+          console.log(`Processing day ${dayKey} with ${dayData.shifts.length} shifts`);
+          dayData.shifts.forEach((shift, idx) => {
+            console.log(`  Shift ${idx}: ${shift.name}, assignedStaff:`, shift.assignedStaff);
+          });
+          
+          normalizedScheduleData[dayKey] = {
+            ...dayData,
+            shifts: dayData.shifts.map(shift => ({
+              ...shift,
+              assignedStaff: shift.assignedStaff || {}
+            }))
+          };
+        } else {
+          normalizedScheduleData[dayKey] = dayData;
+        }
+      });
+      
+      console.log('Normalized schedule data:', normalizedScheduleData);
+      setWeekSchedule(normalizedScheduleData);
     } else {
+      console.log('No schedule found, setting empty');
       setWeekSchedule({});
     }
+    console.log('=== END LOAD WEEK SCHEDULE ===');
   };
 
     const saveWeekSchedule = async () => {
@@ -389,7 +424,8 @@ function ScheduleBuilderTab() {
       
       console.log('Swap search results:', { currentShiftIndex, currentRoleId });
       
-      if (currentShiftIndex !== -1) {
+      // Only perform swap if we found the staff in a different shift/role
+      if (currentShiftIndex !== -1 && (currentShiftIndex !== shiftIndex || currentRoleId !== roleId)) {
         console.log('Performing staff swap...');
         // This is a staff swap - both staff members switch positions
         const updatedShifts = [...daySchedule.shifts];
@@ -428,6 +464,8 @@ function ScheduleBuilderTab() {
         
         console.log('Staff swap completed successfully');
         return; // Exit early - swap is complete
+      } else {
+        console.log('Not a true swap - staff is already in this role or not found elsewhere');
       }
     }
     
