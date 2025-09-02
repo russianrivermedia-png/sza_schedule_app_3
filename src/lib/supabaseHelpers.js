@@ -214,11 +214,11 @@ export const scheduleHelpers = {
     if (error) throw error;
   },
 
-  async getByWeek(weekStart) {
+  async getByWeek(weekKey) {
     const { data, error } = await supabase
       .from('schedules')
       .select('*')
-      .eq('week_start', weekStart)
+      .contains('days', { week_key: weekKey })
       .single();
     
     if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows returned
@@ -229,7 +229,7 @@ export const scheduleHelpers = {
     const { data, error } = await supabase
       .from('schedules')
       .select('*')
-      .order('week_start', { ascending: false });
+      .order('created_at', { ascending: false });
     
     if (error) throw error;
     return data;

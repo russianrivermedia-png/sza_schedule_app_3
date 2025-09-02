@@ -29,7 +29,7 @@ const createIndexes = (data) => {
       return acc;
     }, {}),
     schedulesByWeek: data.schedules.reduce((acc, s) => {
-      acc[s.week_start] = s;
+      acc[s.weekKey] = s;
       return acc;
     }, {})
   };
@@ -184,10 +184,16 @@ export function DataProvider({ children }) {
       dispatch({ type: 'SET_SHIFTS', payload: shiftsResult.data || [] });
       dispatch({ type: 'SET_TOURS', payload: toursResult.data || [] });
       // Transform schedules data to include weekKey for compatibility
-      const transformedSchedules = (schedulesResult.data || []).map(schedule => ({
-        ...schedule,
-        weekKey: format(new Date(schedule.week_start), 'yyyy-MM-dd')
-      }));
+      const transformedSchedules = (schedulesResult.data || []).map(schedule => {
+        // Extract week info from the days column
+        const weekKey = schedule.days?.week_key || format(new Date(), 'yyyy-MM-dd');
+        const weekStart = schedule.days?.week_start || new Date().toISOString();
+        return {
+          ...schedule,
+          weekKey,
+          week_start: weekStart
+        };
+      });
       dispatch({ type: 'SET_SCHEDULES', payload: transformedSchedules });
       dispatch({ type: 'SET_TIME_OFF_REQUESTS', payload: timeOffResult.data || [] });
 
@@ -249,15 +255,21 @@ export function DataProvider({ children }) {
 
       supabase.channel('schedules').on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, (payload) => {
         if (payload.eventType === 'INSERT') {
+          const weekKey = payload.new.days?.week_key || format(new Date(), 'yyyy-MM-dd');
+          const weekStart = payload.new.days?.week_start || new Date().toISOString();
           const transformedSchedule = {
             ...payload.new,
-            weekKey: format(new Date(payload.new.week_start), 'yyyy-MM-dd')
+            weekKey,
+            week_start: weekStart
           };
           dispatch({ type: 'ADD_SCHEDULE', payload: transformedSchedule });
         } else if (payload.eventType === 'UPDATE') {
+          const weekKey = payload.new.days?.week_key || format(new Date(), 'yyyy-MM-dd');
+          const weekStart = payload.new.days?.week_start || new Date().toISOString();
           const transformedSchedule = {
             ...payload.new,
-            weekKey: format(new Date(payload.new.week_start), 'yyyy-MM-dd')
+            weekKey,
+            week_start: weekStart
           };
           dispatch({ type: 'UPDATE_SCHEDULE', payload: transformedSchedule });
         } else if (payload.eventType === 'DELETE') {

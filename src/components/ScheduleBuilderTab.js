@@ -113,18 +113,23 @@ function ScheduleBuilderTab() {
     console.log('Found schedule:', existingSchedule);
     if (existingSchedule) {
       console.log('Setting week schedule to:', existingSchedule.days);
-      setWeekSchedule(existingSchedule.days || {});
+      // Extract the actual schedule data, excluding the metadata
+      const { week_start, week_key, ...scheduleData } = existingSchedule.days || {};
+      setWeekSchedule(scheduleData);
     } else {
       console.log('No schedule found, setting empty');
       setWeekSchedule({});
     }
   };
 
-  const saveWeekSchedule = async () => {
+    const saveWeekSchedule = async () => {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     const scheduleData = {
-      week_start: weekStart.toISOString(),
-      days: weekSchedule,
+      days: {
+        ...weekSchedule,
+        week_start: weekStart.toISOString(),
+        week_key: weekKey
+      }
     };
     console.log('Saving schedule data:', scheduleData);
 
@@ -134,7 +139,7 @@ function ScheduleBuilderTab() {
         // Update existing schedule
         const updatedSchedule = await scheduleHelpers.update(existingSchedule.id, scheduleData);
         dispatch({ type: 'UPDATE_SCHEDULE', payload: updatedSchedule });
-    } else {
+      } else {
         // Create new schedule
         const newSchedule = await scheduleHelpers.add(scheduleData);
         dispatch({ type: 'ADD_SCHEDULE', payload: newSchedule });
