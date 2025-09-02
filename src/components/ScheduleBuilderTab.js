@@ -221,7 +221,7 @@ function ScheduleBuilderTab() {
      const addShiftsToDay = (day, shiftIds) => {
      const dayKey = format(day, 'yyyy-MM-dd');
      const shiftsToAdd = shiftIds.map(shiftId => {
-       const shift = shifts.find(s => s.id === shiftId);
+       const shift = (shifts || []).find(s => s.id === shiftId);
        if (!shift) return null;
        
               return {
@@ -385,7 +385,7 @@ function ScheduleBuilderTab() {
     // If not a swap, handle as replacement
     if (isAlreadyAssignedToday && !existingStaffId) {
       // Staff is assigned elsewhere today but not in this specific role
-      const staffMember = staff.find(s => s.id === staffId);
+      const staffMember = (staff || []).find(s => s.id === staffId);
       
       // Find where they're currently assigned
       let currentAssignment = '';
@@ -393,7 +393,7 @@ function ScheduleBuilderTab() {
       Object.values(daySchedule.shifts).forEach((dayShift, idx) => {
         Object.entries(dayShift.assignedStaff).forEach(([roleId, assignedStaffId]) => {
           if (assignedStaffId === staffId) {
-            const role = roles.find(r => r.id === roleId);
+            const role = (roles || []).find(r => r.id === roleId);
             currentAssignment = role?.name || 'Unknown Role';
           }
         });
@@ -677,7 +677,7 @@ function ScheduleBuilderTab() {
           
           // Track unassigned roles for reporting
           if (!roleAssigned) {
-            const role = roles.find(r => r.id === roleId);
+            const role = (roles || []).find(r => r.id === roleId);
             const dayDate = new Date(dayKey);
             unassignedRoles.push({
               day: format(dayDate, 'EEEE, MMM d'),
@@ -726,7 +726,7 @@ function ScheduleBuilderTab() {
 
   const getShiftTours = (shift) => {
     if (!shift.tours || shift.tours.length === 0) return [];
-    return shift.tours.map(tourId => tours.find(t => t.id === tourId)).filter(Boolean);
+    return shift.tours.map(tourId => (tours || []).find(t => t.id === tourId)).filter(Boolean);
   };
 
   const renderScheduleTable = (day, dayIndex) => {
@@ -770,7 +770,7 @@ function ScheduleBuilderTab() {
           </TableHead>
           <TableBody>
                 {shiftsWithTours.map((shift, shiftIndex) => {
-              const shiftTemplate = shifts.find(s => s.id === shift.shiftId);
+              const shiftTemplate = (shifts || []).find(s => s.id === shift.shiftId);
               const shiftTours = getShiftTours(shift);
               const hasNotes = shift.notes && shift.notes.trim().length > 0;
 
@@ -1026,7 +1026,7 @@ function ScheduleBuilderTab() {
         {/* Performance Metrics Display */}
         <Box sx={{ mb: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1, fontSize: '0.75rem' }}>
           <Typography variant="caption" color="text.secondary">
-            <strong>Performance:</strong> {staff.length} staff • {roles.length} roles • {shifts.length} shifts • 
+            <strong>Performance:</strong> {(staff || []).length} staff • {(roles || []).length} roles • {(shifts || []).length} shifts • 
             Conflict cache: {conflictCache.size} entries • 
             <span style={{ color: 'green' }}>✓ Optimized lookups enabled</span>
           </Typography>
@@ -1152,19 +1152,19 @@ function ScheduleBuilderTab() {
                      '&:hover': { color: 'primary.main' }
                    }}
                    onClick={() => {
-                     if (selectedShifts.length === shifts.length) {
+                     if (selectedShifts.length === (shifts || []).length) {
                        setSelectedShifts([]); // Deselect all
                      } else {
-                       setSelectedShifts(shifts.map(s => s.id)); // Select all
+                       setSelectedShifts((shifts || []).map(s => s.id)); // Select all
                      }
                    }}
                  >
-                   {selectedShifts.length === shifts.length ? 'Deselect All' : 'Select All'} ({selectedShifts.length}/{shifts.length})
+                   {selectedShifts.length === (shifts || []).length ? 'Deselect All' : 'Select All'} ({selectedShifts.length}/{(shifts || []).length})
                  </Typography>
                </Box>
                
                                <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-                  {shifts
+                  {(shifts || [])
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map(shift => (
                   <Box
@@ -1280,7 +1280,7 @@ function ScheduleBuilderTab() {
                   <Alert severity="info" sx={{ mt: 2 }}>
                     <Typography variant="body2">
                       <strong>Current roles:</strong> {selectedShiftData.requiredRoles.map(roleId => {
-                        const role = roles.find(r => r.id === roleId);
+                        const role = (roles || []).find(r => r.id === roleId);
                         return role?.name || 'Unknown Role';
                       }).join(', ')}
                     </Typography>
