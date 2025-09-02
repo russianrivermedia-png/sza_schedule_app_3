@@ -343,14 +343,17 @@ function ScheduleBuilderTab() {
     
     // Check if role is already filled
     const existingStaffId = (shift.assignedStaff || {})[roleId];
+    console.log('Existing staff ID for role:', existingStaffId);
     
     // Check if staff is already assigned elsewhere on this day
     const isAlreadyAssignedToday = daySchedule.shifts.some(dayShift => 
       Object.values(dayShift.assignedStaff || {}).includes(staffId)
     );
+    console.log('Is staff already assigned today:', isAlreadyAssignedToday);
     
     // If this is a swap (both roles have staff), handle it properly
     if (existingStaffId && isAlreadyAssignedToday) {
+      console.log('Handling staff swap...');
       // Find where the staff being dropped is currently assigned
       let currentShiftIndex = -1;
       let currentRoleId = '';
@@ -405,6 +408,7 @@ function ScheduleBuilderTab() {
     }
     
     // If not a swap, handle as replacement
+    console.log('Not a swap - handling as replacement');
     if (isAlreadyAssignedToday && !existingStaffId) {
       // Staff is assigned elsewhere today but not in this specific role
       const staffMember = (staff || []).find(s => s.id === staffId);
@@ -430,17 +434,23 @@ function ScheduleBuilderTab() {
     }
     
     let updatedAssignedStaff = { ...shift.assignedStaff };
+    console.log('Initial updatedAssignedStaff:', updatedAssignedStaff);
     
     if (existingStaffId) {
       // One-to-one swap: existing staff goes back to staff panel
-      if (existingStaffId === staffId) return; // Same staff, no change
+      if (existingStaffId === staffId) {
+        console.log('Same staff, no change needed');
+        return; // Same staff, no change
+      }
       
       // Remove existing staff from this role (they go back to staff panel)
       delete updatedAssignedStaff[roleId];
+      console.log('Removed existing staff, updatedAssignedStaff:', updatedAssignedStaff);
     }
     
     // Assign new staff to the role
     updatedAssignedStaff[roleId] = staffId;
+    console.log('Assigned new staff, final updatedAssignedStaff:', updatedAssignedStaff);
     
     // Increment shift count for the assigned staff member
     if (staffId && (!existingStaffId || existingStaffId !== staffId)) {
@@ -461,6 +471,7 @@ function ScheduleBuilderTab() {
       alert(`Warning: ${staffMember.name} is not trained for ${role.name}. Assignment allowed but may cause issues.`);
     }
     
+    console.log('Creating updated shift with assignedStaff:', updatedAssignedStaff);
     const updatedShift = {
       ...shift,
       assignedStaff: updatedAssignedStaff
@@ -468,6 +479,7 @@ function ScheduleBuilderTab() {
     
     const updatedShifts = [...daySchedule.shifts];
     updatedShifts[shiftIndex] = updatedShift;
+    console.log('Updated shifts array:', updatedShifts);
     
     const updatedDay = {
       ...daySchedule,
