@@ -329,8 +329,9 @@ function ScheduleBuilderTab() {
   };
 
   const handleStaffDrop = (day, shiftIndex, roleId, staffId) => {
-    console.log('=== HANDLE STAFF DROP CALLED ===');
-    console.log('Parameters:', { day: format(day, 'yyyy-MM-dd'), shiftIndex, roleId, staffId });
+    try {
+      console.log('=== HANDLE STAFF DROP CALLED ===');
+      console.log('Parameters:', { day: format(day, 'yyyy-MM-dd'), shiftIndex, roleId, staffId });
     
     const dayKey = format(day, 'yyyy-MM-dd');
     const daySchedule = weekSchedule[dayKey];
@@ -342,6 +343,7 @@ function ScheduleBuilderTab() {
     console.log('Current shift:', shift);
     
     // Check if role is already filled
+    console.log('About to check existing staff ID...');
     const existingStaffId = (shift.assignedStaff || {})[roleId];
     console.log('Existing staff ID for role:', existingStaffId);
     
@@ -496,6 +498,10 @@ function ScheduleBuilderTab() {
       [dayKey]: updatedDay
     });
     console.log('=== END HANDLE STAFF DROP ===');
+    } catch (error) {
+      console.error('Error in handleStaffDrop:', error);
+      console.error('Error stack:', error.stack);
+    }
   };
 
   const removeStaffFromRole = (day, shiftIndex, roleId) => {
