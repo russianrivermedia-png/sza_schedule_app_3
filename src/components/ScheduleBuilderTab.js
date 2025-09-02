@@ -98,6 +98,11 @@ function ScheduleBuilderTab() {
     loadWeekSchedule();
   }, [selectedWeek, schedules]);
 
+  // Debug: Log when schedules change
+  useEffect(() => {
+    console.log('Schedules changed:', schedules);
+  }, [schedules]);
+
   const loadWeekSchedule = () => {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     console.log('Loading week schedule for:', weekKey);
