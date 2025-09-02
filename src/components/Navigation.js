@@ -12,13 +12,15 @@ import {
   Button,
   IconButton,
 } from '@mui/material';
-import { ArrowDropDown, Settings } from '@mui/icons-material';
+import { ArrowDropDown, Settings, Logout } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 
 function Navigation() {
   const navigate = useNavigate();
   const location = useLocation();
   const { hasData } = useData();
+  const { user, logout, hasPermission } = useAuth();
   const [managerMenuAnchor, setManagerMenuAnchor] = useState(null);
 
   // Manager-only features (dropdown menu)
@@ -29,12 +31,15 @@ function Navigation() {
     { label: 'Shifts', path: '/shifts' },
   ];
 
-  // Main tabs (always visible)
-  const mainTabs = [
-    { label: 'Builder', path: '/builder' },
-    { label: 'Viewer', path: '/viewer' },
-    { label: 'Data', path: '/data' },
+  // Main tabs (role-based visibility)
+  const allMainTabs = [
+    { label: 'Builder', path: '/builder', requiredRole: 'supervisor' },
+    { label: 'Viewer', path: '/viewer', requiredRole: 'staff' },
+    { label: 'Data', path: '/data', requiredRole: 'manager' },
   ];
+
+  // Filter tabs based on user permissions
+  const mainTabs = allMainTabs.filter(tab => hasPermission(tab.requiredRole));
 
   const currentTab = mainTabs.findIndex(tab => tab.path === location.pathname);
   const isManagerFeature = managerFeatures.some(feature => feature.path === location.pathname);
@@ -56,6 +61,11 @@ function Navigation() {
     handleManagerMenuClose();
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/viewer');
+  };
+
   return (
     <AppBar position="static">
       <Toolbar>
@@ -63,46 +73,57 @@ function Navigation() {
           SZA Schedule App
         </Typography>
         
-        {/* Manager Features Dropdown */}
-        <Button
-          color="inherit"
-          onClick={handleManagerMenuOpen}
-          endIcon={<ArrowDropDown />}
-          startIcon={<Settings />}
-          sx={{ 
-            mr: 2,
-            backgroundColor: isManagerFeature ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-            '&:hover': {
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            }
-          }}
-        >
-          Manager
-        </Button>
+        {/* User Info */}
+        {user && (
+          <Typography variant="body2" sx={{ mr: 2 }}>
+            {user.name} ({user.role})
+          </Typography>
+        )}
         
-        <Menu
-          anchorEl={managerMenuAnchor}
-          open={Boolean(managerMenuAnchor)}
-          onClose={handleManagerMenuClose}
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'left',
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'left',
-          }}
-        >
-          {managerFeatures.map((feature) => (
-            <MenuItem
-              key={feature.path}
-              onClick={() => handleManagerFeatureSelect(feature.path)}
-              selected={location.pathname === feature.path}
+        {/* Manager Features Dropdown - Only show for managers */}
+        {hasPermission('manager') && (
+          <>
+            <Button
+              color="inherit"
+              onClick={handleManagerMenuOpen}
+              endIcon={<ArrowDropDown />}
+              startIcon={<Settings />}
+              sx={{ 
+                mr: 2,
+                backgroundColor: isManagerFeature ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                }
+              }}
             >
-              {feature.label}
-            </MenuItem>
-          ))}
-        </Menu>
+              Manager
+            </Button>
+            
+            <Menu
+              anchorEl={managerMenuAnchor}
+              open={Boolean(managerMenuAnchor)}
+              onClose={handleManagerMenuClose}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'left',
+              }}
+              transformOrigin={{
+                vertical: 'top',
+                horizontal: 'left',
+              }}
+            >
+              {managerFeatures.map((feature) => (
+                <MenuItem
+                  key={feature.path}
+                  onClick={() => handleManagerFeatureSelect(feature.path)}
+                  selected={location.pathname === feature.path}
+                >
+                  {feature.label}
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
+        )}
 
         {/* Main Tabs */}
         <Tabs
@@ -119,6 +140,18 @@ function Navigation() {
             />
           ))}
         </Tabs>
+
+        {/* Logout Button */}
+        {user && (
+          <IconButton
+            color="inherit"
+            onClick={handleLogout}
+            sx={{ ml: 1 }}
+            title="Logout"
+          >
+            <Logout />
+          </IconButton>
+        )}
       </Toolbar>
     </AppBar>
   );
