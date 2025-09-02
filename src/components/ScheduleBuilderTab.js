@@ -329,7 +329,7 @@ function ScheduleBuilderTab() {
   };
 
   const handleStaffDrop = (day, shiftIndex, roleId, staffId) => {
-    console.log('=== HANDLE STAFF DROP ===');
+    console.log('=== HANDLE STAFF DROP CALLED ===');
     console.log('Parameters:', { day: format(day, 'yyyy-MM-dd'), shiftIndex, roleId, staffId });
     
     const dayKey = format(day, 'yyyy-MM-dd');
@@ -833,7 +833,9 @@ function ScheduleBuilderTab() {
                             roleId,
                             assignedStaffId,
                             assignedStaffName: assignedStaff?.name || 'none',
-                            shiftAssignedStaff: shift.assignedStaff
+                            assignedStaffObject: assignedStaff,
+                            shiftAssignedStaff: shift.assignedStaff,
+                            onStaffDropFunction: typeof ((staffId) => handleStaffDrop(day, shiftIndex, roleId, staffId))
                           });
                           
                           return (
