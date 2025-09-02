@@ -329,6 +329,9 @@ function ScheduleBuilderTab() {
   };
 
   const handleStaffDrop = (day, shiftIndex, roleId, staffId) => {
+    console.log('=== HANDLE STAFF DROP ===');
+    console.log('Parameters:', { day: format(day, 'yyyy-MM-dd'), shiftIndex, roleId, staffId });
+    
     const dayKey = format(day, 'yyyy-MM-dd');
     const daySchedule = weekSchedule[dayKey];
     if (!daySchedule || !daySchedule.shifts || !daySchedule.shifts[shiftIndex]) {
@@ -336,6 +339,7 @@ function ScheduleBuilderTab() {
       return;
     }
     const shift = daySchedule.shifts[shiftIndex];
+    console.log('Current shift:', shift);
     
     // Check if role is already filled
     const existingStaffId = (shift.assignedStaff || {})[roleId];
@@ -474,6 +478,12 @@ function ScheduleBuilderTab() {
       ...prev,
       [dayKey]: updatedDay
     }));
+    
+    console.log('Updated weekSchedule state:', {
+      ...weekSchedule,
+      [dayKey]: updatedDay
+    });
+    console.log('=== END HANDLE STAFF DROP ===');
   };
 
   const removeStaffFromRole = (day, shiftIndex, roleId) => {
@@ -816,6 +826,15 @@ function ScheduleBuilderTab() {
                           const assignedStaffId = shift.assignedStaff[roleId];
                               const assignedStaff = getStaffById(assignedStaffId);
                           const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
+                          
+                          // Debug logging
+                          console.log('Rendering DroppableRole:', {
+                            roleName: role?.name,
+                            roleId,
+                            assignedStaffId,
+                            assignedStaffName: assignedStaff?.name || 'none',
+                            shiftAssignedStaff: shift.assignedStaff
+                          });
                           
                           return (
                             <Box key={roleId} sx={{ mb: 1 }}>
