@@ -25,6 +25,14 @@ function DroppableRole({ role, assignedStaff, conflicts, onStaffDrop, onRemoveSt
   const [colorMenuAnchor, setColorMenuAnchor] = useState(null);
   const [selectedStaffId, setSelectedStaffId] = useState('');
   
+  // Debug logging
+  console.log('DroppableRole render:', { 
+    roleName: role?.name, 
+    assignedStaff: assignedStaff?.name || 'none', 
+    assignedStaffId: assignedStaff?.id || 'none',
+    hasAssignedStaff: !!assignedStaff 
+  });
+  
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'staff',
     drop: (item) => onStaffDrop(item.id),
@@ -112,8 +120,10 @@ function DroppableRole({ role, assignedStaff, conflicts, onStaffDrop, onRemoveSt
                 value={selectedStaffId}
                 onChange={(e) => {
                   const staffId = e.target.value;
+                  console.log('Staff selected:', staffId);
                   setSelectedStaffId(staffId);
                   if (staffId) {
+                    console.log('Calling onStaffDrop with:', staffId);
                     onStaffDrop(staffId);
                     setSelectedStaffId(''); // Reset selection
                   }
