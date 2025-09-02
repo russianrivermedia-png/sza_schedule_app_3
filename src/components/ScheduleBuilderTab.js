@@ -350,10 +350,22 @@ function ScheduleBuilderTab() {
     console.log('Existing staff ID for role:', existingStaffId);
     
     // Check if staff is already assigned elsewhere on this day
+    console.log('Checking if staff is already assigned today...');
+    console.log('Staff ID to check:', staffId);
+    console.log('All shifts for this day:', daySchedule.shifts);
+    
     const isAlreadyAssignedToday = daySchedule.shifts.some(dayShift => 
       Object.values(dayShift.assignedStaff || {}).includes(staffId)
     );
     console.log('Is staff already assigned today:', isAlreadyAssignedToday);
+    
+    // Let's also check which specific shifts have this staff assigned
+    daySchedule.shifts.forEach((dayShift, idx) => {
+      const assignedStaffIds = Object.values(dayShift.assignedStaff || {});
+      if (assignedStaffIds.includes(staffId)) {
+        console.log(`Staff ${staffId} is assigned to shift ${idx}:`, dayShift.assignedStaff);
+      }
+    });
     
     // If this is a swap (both roles have staff), handle it properly
     if (existingStaffId && isAlreadyAssignedToday) {
