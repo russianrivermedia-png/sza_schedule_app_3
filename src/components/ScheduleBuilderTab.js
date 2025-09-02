@@ -107,6 +107,8 @@ function ScheduleBuilderTab() {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     console.log('Loading week schedule for:', weekKey);
     console.log('Available schedules:', schedules);
+    console.log('Schedule weekKeys:', schedules.map(s => ({ id: s.id, weekKey: s.weekKey, week_start: s.week_start })));
+    console.log('Full schedule objects:', schedules);
     const existingSchedule = schedules.find(s => s.weekKey === weekKey);
     console.log('Found schedule:', existingSchedule);
     if (existingSchedule) {
@@ -132,7 +134,7 @@ function ScheduleBuilderTab() {
         // Update existing schedule
         const updatedSchedule = await scheduleHelpers.update(existingSchedule.id, scheduleData);
         dispatch({ type: 'UPDATE_SCHEDULE', payload: updatedSchedule });
-      } else {
+    } else {
         // Create new schedule
         const newSchedule = await scheduleHelpers.add(scheduleData);
         dispatch({ type: 'ADD_SCHEDULE', payload: newSchedule });
@@ -282,7 +284,7 @@ function ScheduleBuilderTab() {
      // Reset and close
      setSelectedShifts([]);
      setOpenShiftDialog(false);
-   };
+  };
 
   const removeShiftFromDay = (day, shiftIndex) => {
     const dayKey = format(day, 'yyyy-MM-dd');
