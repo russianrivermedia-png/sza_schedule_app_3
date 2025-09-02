@@ -166,7 +166,7 @@ export function DataProvider({ children }) {
         supabase.from('roles').select('*'),
         supabase.from('shifts').select('*'),
         supabase.from('tours').select('*'),
-        supabase.from('schedules').select('*'),
+        supabase.from('schedules').select('id, days, created_at'),
         supabase.from('time_off_requests').select('*'),
       ]);
 
@@ -193,7 +193,7 @@ export function DataProvider({ children }) {
           weekKey,
           week_start: weekStart
         };
-      });
+      }).filter(schedule => schedule.days && typeof schedule.days === 'object');
       dispatch({ type: 'SET_SCHEDULES', payload: transformedSchedules });
       dispatch({ type: 'SET_TIME_OFF_REQUESTS', payload: timeOffResult.data || [] });
 
@@ -255,23 +255,27 @@ export function DataProvider({ children }) {
 
       supabase.channel('schedules').on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, (payload) => {
         if (payload.eventType === 'INSERT') {
-          const weekKey = payload.new.days?.week_key || format(new Date(), 'yyyy-MM-dd');
-          const weekStart = payload.new.days?.week_start || new Date().toISOString();
-          const transformedSchedule = {
-            ...payload.new,
-            weekKey,
-            week_start: weekStart
-          };
-          dispatch({ type: 'ADD_SCHEDULE', payload: transformedSchedule });
+          if (payload.new.days && typeof payload.new.days === 'object') {
+            const weekKey = payload.new.days?.week_key || format(new Date(), 'yyyy-MM-dd');
+            const weekStart = payload.new.days?.week_start || new Date().toISOString();
+            const transformedSchedule = {
+              ...payload.new,
+              weekKey,
+              week_start: weekStart
+            };
+            dispatch({ type: 'ADD_SCHEDULE', payload: transformedSchedule });
+          }
         } else if (payload.eventType === 'UPDATE') {
-          const weekKey = payload.new.days?.week_key || format(new Date(), 'yyyy-MM-dd');
-          const weekStart = payload.new.days?.week_start || new Date().toISOString();
-          const transformedSchedule = {
-            ...payload.new,
-            weekKey,
-            week_start: weekStart
-          };
-          dispatch({ type: 'UPDATE_SCHEDULE', payload: transformedSchedule });
+          if (payload.new.days && typeof payload.new.days === 'object') {
+            const weekKey = payload.new.days?.week_key || format(new Date(), 'yyyy-MM-dd');
+            const weekStart = payload.new.days?.week_start || new Date().toISOString();
+            const transformedSchedule = {
+              ...payload.new,
+              weekKey,
+              week_start: weekStart
+            };
+            dispatch({ type: 'UPDATE_SCHEDULE', payload: transformedSchedule });
+          }
         } else if (payload.eventType === 'DELETE') {
           dispatch({ type: 'DELETE_SCHEDULE', payload: payload.old.id });
         }

@@ -186,7 +186,7 @@ export const scheduleHelpers = {
     const { data, error } = await supabase
       .from('schedules')
       .insert([scheduleData])
-      .select()
+      .select('id, days, created_at')
       .single();
     
     if (error) throw error;
@@ -198,7 +198,7 @@ export const scheduleHelpers = {
       .from('schedules')
       .update(updates)
       .eq('id', id)
-      .select()
+      .select('id, days, created_at')
       .single();
     
     if (error) throw error;
@@ -217,7 +217,7 @@ export const scheduleHelpers = {
   async getByWeek(weekKey) {
     const { data, error } = await supabase
       .from('schedules')
-      .select('*')
+      .select('id, days, created_at')
       .contains('days', { week_key: weekKey })
       .single();
     
@@ -228,7 +228,7 @@ export const scheduleHelpers = {
   async getAll() {
     const { data, error } = await supabase
       .from('schedules')
-      .select('*')
+      .select('id, days, created_at')
       .order('created_at', { ascending: false });
     
     if (error) throw error;
