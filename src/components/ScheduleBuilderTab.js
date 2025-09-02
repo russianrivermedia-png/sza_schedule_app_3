@@ -106,6 +106,7 @@ function ScheduleBuilderTab() {
 
   const loadWeekSchedule = () => {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
+    console.log('=== LOAD WEEK SCHEDULE ===');
     console.log('Loading week schedule for:', weekKey);
     console.log('Available schedules:', schedules);
     console.log('Schedule weekKeys:', schedules.map(s => ({ id: s.id, weekKey: s.weekKey, week_start: s.week_start })));
@@ -115,11 +116,13 @@ function ScheduleBuilderTab() {
     console.log('Looking for weekKey:', weekKey);
     console.log('Available weekKeys:', schedules.map(s => s.weekKey));
     console.log('Is saving:', isSaving);
+    console.log('Current weekSchedule state:', weekSchedule);
     
     if (existingSchedule) {
       console.log('Setting week schedule to:', existingSchedule.days);
       // Extract the actual schedule data, excluding the metadata
       const { week_start, week_key, ...scheduleData } = existingSchedule.days || {};
+      console.log('Extracted schedule data:', scheduleData);
       setWeekSchedule(scheduleData);
     } else {
       // Only clear the schedule if we're not currently saving
@@ -128,8 +131,10 @@ function ScheduleBuilderTab() {
         setWeekSchedule({});
       } else {
         console.log('No schedule found but currently saving, keeping current schedule');
+        console.log('Current weekSchedule will remain:', weekSchedule);
       }
     }
+    console.log('=== END LOAD WEEK SCHEDULE ===');
   };
 
     const saveWeekSchedule = async () => {
@@ -141,25 +146,35 @@ function ScheduleBuilderTab() {
         week_key: weekKey
       }
     };
+    console.log('=== SAVE START ===');
+    console.log('Current weekSchedule before save:', weekSchedule);
     console.log('Saving schedule data:', scheduleData);
 
     setIsSaving(true);
+    console.log('Set isSaving to true');
     try {
       const existingSchedule = schedules.find(s => s.weekKey === weekKey);
+      console.log('Existing schedule found:', existingSchedule);
       if (existingSchedule) {
         // Update existing schedule
+        console.log('Updating existing schedule...');
         const updatedSchedule = await scheduleHelpers.update(existingSchedule.id, scheduleData);
+        console.log('Updated schedule:', updatedSchedule);
         dispatch({ type: 'UPDATE_SCHEDULE', payload: updatedSchedule });
       } else {
         // Create new schedule
+        console.log('Creating new schedule...');
         const newSchedule = await scheduleHelpers.add(scheduleData);
+        console.log('New schedule created:', newSchedule);
         dispatch({ type: 'ADD_SCHEDULE', payload: newSchedule });
       }
     } catch (error) {
       console.error('Error saving schedule:', error);
       alert(`Error saving schedule: ${error.message}. Please try again.`);
     } finally {
+      console.log('Set isSaving to false');
       setIsSaving(false);
+      console.log('=== SAVE END ===');
     }
   };
 
