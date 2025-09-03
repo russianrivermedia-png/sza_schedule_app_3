@@ -39,6 +39,7 @@ import {
 import { useData } from '../context/DataContext';
 import { format } from 'date-fns';
 import { staffHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
+import RoleAssignmentPanel from './RoleAssignmentPanel';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -78,6 +79,10 @@ function StaffTab() {
   // Sort state
   const [sortBy, setSortBy] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
+  
+  // Filter state
+  const [filterByRole, setFilterByRole] = useState('');
+  const [filterByDays, setFilterByDays] = useState([]);
 
   const handleOpenDialog = (staff = null) => {
     if (staff) {
@@ -194,6 +199,8 @@ function StaffTab() {
     }));
   };
 
+
+
   const handleTimeOffSubmit = async () => {
     if (!timeOffForm.staffId || !timeOffForm.startDate || !timeOffForm.endDate) return;
 
@@ -300,16 +307,36 @@ function StaffTab() {
     }
   };
 
-  const getSortedStaff = () => {
-    const sorted = [...staff].sort((a, b) => {
+  const getFilteredAndSortedStaff = () => {
+    // First apply filters
+    let filtered = [...staff];
+    
+    // Filter by role
+    if (filterByRole) {
+      filtered = filtered.filter(member => 
+        (member.trained_roles || []).includes(filterByRole)
+      );
+    }
+    
+    // Filter by days (staff must be available on ALL selected days)
+    if (filterByDays.length > 0) {
+      filtered = filtered.filter(member => {
+        const memberAvailability = member.availability || [];
+        // Check if member is available on ALL selected days
+        return filterByDays.every(day => memberAvailability.includes(day));
+      });
+    }
+    
+    // Then apply sorting
+    const sorted = filtered.sort((a, b) => {
       let aValue, bValue;
       
       if (sortBy === 'name') {
         aValue = a.name.toLowerCase();
         bValue = b.name.toLowerCase();
       } else if (sortBy === 'hireDate') {
-        aValue = a.hireDate ? new Date(a.hireDate) : new Date(0);
-        bValue = b.hireDate ? new Date(b.hireDate) : new Date(0);
+        aValue = a.hire_date ? new Date(a.hire_date) : new Date(0);
+        bValue = b.hire_date ? new Date(b.hire_date) : new Date(0);
       }
       
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
@@ -325,6 +352,49 @@ function StaffTab() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4">Staff Management</Typography>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          {/* Filter Controls */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Filter by:
+            </Typography>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={filterByRole}
+                onChange={(e) => setFilterByRole(e.target.value)}
+                label="Role"
+              >
+                <MenuItem value="">All Roles</MenuItem>
+                {roles.map((role) => (
+                  <MenuItem key={role.id} value={role.id}>
+                    {role.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Available on</InputLabel>
+              <Select
+                multiple
+                value={filterByDays}
+                onChange={(e) => setFilterByDays(e.target.value)}
+                label="Available on"
+                renderValue={(selected) => {
+                  if (selected.length === 0) return 'All Days';
+                  if (selected.length === 1) return selected[0];
+                  if (selected.length === 7) return 'All Days';
+                  return `${selected.length} days`;
+                }}
+              >
+                {DAYS_OF_WEEK.map((day) => (
+                  <MenuItem key={day} value={day}>
+                    {day}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+          
           {/* Sort Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="body2" color="text.secondary">
@@ -353,6 +423,21 @@ function StaffTab() {
             </IconButton>
           </Box>
           
+          {/* Clear Filters Button */}
+          {(filterByRole || filterByDays.length > 0) && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => {
+                setFilterByRole('');
+                setFilterByDays([]);
+              }}
+              sx={{ color: 'text.secondary' }}
+            >
+              Clear Filters
+            </Button>
+          )}
+          
           <Button
             variant="outlined"
             startIcon={<EventIcon />}
@@ -377,8 +462,28 @@ function StaffTab() {
         </Box>
       </Box>
 
-             <Grid container spacing={3}>
-         {getSortedStaff().map((member) => {
+        {/* Results Summary */}
+        {(() => {
+          const filteredStaff = getFilteredAndSortedStaff();
+          const totalStaff = staff.length;
+          const filteredCount = filteredStaff.length;
+          
+          if (filterByRole || filterByDays.length > 0) {
+            return (
+              <Box sx={{ mb: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Showing {filteredCount} of {totalStaff} staff members
+                  {filterByRole && ` • Filtered by role: ${roles.find(r => r.id === filterByRole)?.name || 'Unknown'}`}
+                  {filterByDays.length > 0 && ` • Available on: ${filterByDays.join(', ')}`}
+                </Typography>
+              </Box>
+            );
+          }
+          return null;
+        })()}
+
+        <Grid container spacing={3}>
+          {getFilteredAndSortedStaff().map((member) => {
            const availabilityStatus = getStaffAvailabilityStatus(member);
            const timeOffRequests = getStaffTimeOff(member.id);
           
@@ -435,20 +540,6 @@ function StaffTab() {
                       <strong>Total Shifts Worked:</strong> {member.shiftCount || 0}
                     </Typography>
                     
-                    {member.roleCounts && Object.keys(member.roleCounts).length > 0 && (
-                      <Typography variant="body2" gutterBottom>
-                        <strong>Shifts by Role:</strong>
-                      </Typography>
-                    )}
-                                         {member.roleCounts && Object.keys(member.roleCounts).map(roleId => {
-                       const role = getRoleById(roleId);
-                       return role ? (
-                         <Typography key={roleId} variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-                           • {role.name}: {member.roleCounts[roleId]} shifts
-                         </Typography>
-                       ) : null;
-                     })}
-                    
                     <Typography variant="body2" gutterBottom>
                       <strong>Status:</strong>
                       <Chip
@@ -467,23 +558,6 @@ function StaffTab() {
                         Has approved time off requests
                       </Alert>
                     )}
-
-                    <Typography variant="body2" gutterBottom sx={{ mt: 1 }}>
-                      <strong>Trained Roles:</strong>
-                    </Typography>
-                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                       {member.trained_roles && member.trained_roles.map(roleId => {
-                         const role = getRoleById(roleId);
-                         return role ? (
-                           <Chip
-                             key={roleId}
-                             label={role.name}
-                             size="small"
-                             variant="outlined"
-                           />
-                         ) : null;
-                       })}
-                     </Box>
                   </Box>
                 </CardContent>
               </Card>
@@ -492,92 +566,194 @@ function StaffTab() {
         })}
       </Grid>
 
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={openDialog} 
+        onClose={handleCloseDialog} 
+        maxWidth={editingStaff ? "lg" : "sm"} 
+        fullWidth
+        fullScreen={editingStaff}
+      >
         <DialogTitle>
           {editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}
         </DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1 }}>
-            <TextField
-              fullWidth
-              label="Name *"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              onKeyPress={handleKeyPress}
-              inputRef={nameInputRef}
-              margin="normal"
-              required
-            />
-            <TextField
-              fullWidth
-              label="Email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Phone"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Hire Date"
-              type="date"
-              value={formData.hireDate}
-              onChange={(e) => setFormData({ ...formData, hireDate: e.target.value })}
-              margin="normal"
-              InputLabelProps={{ shrink: true }}
-            />
-            <TextField
-              fullWidth
-              label="Target Shifts per Week"
-              type="number"
-              value={formData.targetShifts}
-              onChange={(e) => setFormData({ ...formData, targetShifts: parseInt(e.target.value) || 0 })}
-              margin="normal"
-              inputProps={{ min: 0, max: 7 }}
-            />
-
-            <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
-              Availability
-            </Typography>
-            <FormGroup row>
-              {DAYS_OF_WEEK.map((day) => (
-                <FormControlLabel
-                  key={day}
-                  control={
-                    <Switch
-                      checked={formData.availability.includes(day)}
-                      onChange={() => handleAvailabilityChange(day)}
-                    />
-                  }
-                  label={day}
+        <DialogContent sx={{ p: 0 }}>
+          {editingStaff ? (
+            <Box sx={{ display: 'flex', height: '70vh' }}>
+              {/* Left Panel - Staff Details */}
+              <Box sx={{ flex: 1, p: 3, borderRight: 1, borderColor: 'divider' }}>
+                <TextField
+                  fullWidth
+                  label="Name *"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onKeyPress={handleKeyPress}
+                  inputRef={nameInputRef}
+                  margin="normal"
+                  required
                 />
-              ))}
-            </FormGroup>
-
-            <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
-              Trained Roles
-            </Typography>
-            <FormGroup row>
-              {roles.map((role) => (
-                <FormControlLabel
-                  key={role.id}
-                  control={
-                    <Switch
-                      checked={formData.trainedRoles.includes(role.id)}
-                      onChange={() => handleTrainedRolesChange(role.id)}
-                    />
-                  }
-                  label={role.name}
+                <TextField
+                  fullWidth
+                  label="Email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  margin="normal"
                 />
-              ))}
-            </FormGroup>
-          </Box>
+                <TextField
+                  fullWidth
+                  label="Phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  margin="normal"
+                />
+                <TextField
+                  fullWidth
+                  label="Hire Date"
+                  type="date"
+                  value={formData.hireDate}
+                  onChange={(e) => setFormData({ ...formData, hireDate: e.target.value })}
+                  margin="normal"
+                  InputLabelProps={{ shrink: true }}
+                />
+                <TextField
+                  fullWidth
+                  label="Target Shifts per Week"
+                  type="number"
+                  value={formData.targetShifts}
+                  onChange={(e) => setFormData({ ...formData, targetShifts: parseInt(e.target.value) || 0 })}
+                  margin="normal"
+                  inputProps={{ min: 0, max: 7 }}
+                />
+
+                <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                  Availability
+                </Typography>
+                <FormGroup row>
+                  {DAYS_OF_WEEK.map((day) => (
+                    <FormControlLabel
+                      key={day}
+                      control={
+                        <Switch
+                          checked={formData.availability.includes(day)}
+                          onChange={() => handleAvailabilityChange(day)}
+                        />
+                      }
+                      label={day}
+                    />
+                  ))}
+                </FormGroup>
+
+                <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                  Trained Roles
+                </Typography>
+                <FormGroup row>
+                  {roles.map((role) => (
+                    <FormControlLabel
+                      key={role.id}
+                      control={
+                        <Switch
+                          checked={formData.trainedRoles.includes(role.id)}
+                          onChange={() => handleTrainedRolesChange(role.id)}
+                        />
+                      }
+                      label={role.name}
+                    />
+                  ))}
+                </FormGroup>
+              </Box>
+              
+              {/* Right Panel - Role Assignment History */}
+              <Box sx={{ flex: 1, minWidth: 400 }}>
+                <RoleAssignmentPanel 
+                  staffId={editingStaff.id} 
+                  staffName={editingStaff.name}
+                  roles={roles}
+                />
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{ pt: 1, p: 3 }}>
+              <TextField
+                fullWidth
+                label="Name *"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onKeyPress={handleKeyPress}
+                inputRef={nameInputRef}
+                margin="normal"
+                required
+              />
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                margin="normal"
+              />
+              <TextField
+                fullWidth
+                label="Phone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                margin="normal"
+              />
+              <TextField
+                fullWidth
+                label="Hire Date"
+                type="date"
+                value={formData.hireDate}
+                onChange={(e) => setFormData({ ...formData, hireDate: e.target.value })}
+                margin="normal"
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                fullWidth
+                label="Target Shifts per Week"
+                type="number"
+                value={formData.targetShifts}
+                onChange={(e) => setFormData({ ...formData, targetShifts: parseInt(e.target.value) || 0 })}
+                margin="normal"
+                inputProps={{ min: 0, max: 7 }}
+              />
+
+              <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                Availability
+              </Typography>
+              <FormGroup row>
+                {DAYS_OF_WEEK.map((day) => (
+                  <FormControlLabel
+                    key={day}
+                    control={
+                      <Switch
+                        checked={formData.availability.includes(day)}
+                        onChange={() => handleAvailabilityChange(day)}
+                      />
+                    }
+                    label={day}
+                  />
+                ))}
+              </FormGroup>
+
+              <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                Trained Roles
+              </Typography>
+              <FormGroup row>
+                {roles.map((role) => (
+                  <FormControlLabel
+                    key={role.id}
+                    control={
+                      <Switch
+                        checked={formData.trainedRoles.includes(role.id)}
+                        onChange={() => handleTrainedRolesChange(role.id)}
+                      />
+                    }
+                    label={role.name}
+                  />
+                ))}
+              </FormGroup>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>

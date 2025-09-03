@@ -291,3 +291,63 @@ export const timeOffHelpers = {
     return data;
   }
 };
+
+// Role Assignments Helpers
+export const roleAssignmentsHelpers = {
+  async add(staffId, role, shiftId = null, tourId = null, weekKey = null, isManual = false, createdBy = null) {
+    const { data, error } = await supabase
+      .from('role_assignments')
+      .insert({
+        staff_id: staffId,
+        role: role,
+        shift_id: shiftId,
+        tour_id: tourId,
+        week_key: weekKey,
+        assignment_date: new Date().toISOString(),
+        is_manual: isManual,
+        created_by: createdBy
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getByStaff(staffId) {
+    const { data, error } = await supabase
+      .from('role_assignments')
+      .select('*')
+      .eq('staff_id', staffId)
+      .order('assignment_date', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getSummaryByStaff(staffId) {
+    const { data, error } = await supabase
+      .from('role_assignments')
+      .select('role')
+      .eq('staff_id', staffId);
+
+    if (error) throw error;
+    
+    // Count role assignments
+    const summary = {};
+    data.forEach(assignment => {
+      summary[assignment.role] = (summary[assignment.role] || 0) + 1;
+    });
+    
+    return summary;
+  },
+
+  async delete(assignmentId) {
+    const { error } = await supabase
+      .from('role_assignments')
+      .delete()
+      .eq('id', assignmentId);
+
+    if (error) throw error;
+  }
+};

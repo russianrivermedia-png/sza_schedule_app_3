@@ -43,7 +43,7 @@ import {
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
-import { scheduleHelpers } from '../lib/supabaseHelpers';
+import { scheduleHelpers, roleAssignmentsHelpers } from '../lib/supabaseHelpers';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import DroppableRole from './DroppableRole';
 import TourDisplay from './TourDisplay';
@@ -184,6 +184,27 @@ function ScheduleBuilderTab() {
   useEffect(() => {
     setConflictCache(new Map());
   }, [timeOffRequests, weekSchedule]);
+
+  // Log role assignment for tracking
+  const logRoleAssignment = async (staffId, roleId, shiftId = null, tourId = null, weekKey = null) => {
+    try {
+      const role = getRoleById(roleId);
+      if (role) {
+        await roleAssignmentsHelpers.add(
+          staffId,
+          role.name, // Store role name instead of ID for easier querying
+          shiftId,
+          tourId,
+          weekKey,
+          false, // isManual = false (automatic assignment)
+          'Schedule Builder' // createdBy
+        );
+      }
+    } catch (error) {
+      console.error('Error logging role assignment:', error);
+      // Don't throw error - assignment logging shouldn't break the main functionality
+    }
+  };
 
   // Performance optimization: Cached conflict checking
   const getStaffConflicts = (staffId, day, roleId) => {
@@ -477,8 +498,13 @@ function ScheduleBuilderTab() {
     // Assign new staff to the role
     updatedAssignedStaff[roleId] = staffId;
     
-    // Increment shift count for the assigned staff member
+    // Log role assignment for tracking
     if (staffId && (!existingStaffId || existingStaffId !== staffId)) {
+      const weekKey = format(weekStart, 'yyyy-MM-dd');
+      const shift = daySchedule.shifts[shiftIndex];
+      logRoleAssignment(staffId, roleId, shift.shiftId, null, weekKey);
+      
+      // Increment shift count for the assigned staff member
       dispatch({
         type: 'UPDATE_STAFF_SHIFT_COUNT',
         payload: {
@@ -729,6 +755,10 @@ function ScheduleBuilderTab() {
                dayAssignedStaff.add(staffMember.id); // Mark as assigned for this day
                assignedRoles++;
                roleAssigned = true;
+               
+               // Log role assignment for tracking
+               const weekKey = format(weekStart, 'yyyy-MM-dd');
+               logRoleAssignment(staffMember.id, roleId, shift.shiftId, null, weekKey);
                
                // Increment shift count for the assigned staff member
                dispatch({
