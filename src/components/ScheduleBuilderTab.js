@@ -48,7 +48,7 @@ import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import DroppableRole from './DroppableRole';
 import TourDisplay from './TourDisplay';
 
-const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function ScheduleBuilderTab() {
   const { 
@@ -92,7 +92,7 @@ function ScheduleBuilderTab() {
   const [conflictCache, setConflictCache] = useState(new Map());
 
   // Get week dates
-  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 });
+  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 0 });
   const weekDates = DAYS_OF_WEEK.map((_, index) => addDays(weekStart, index));
 
   useEffect(() => {

@@ -27,7 +27,7 @@ import { format, startOfWeek, addDays } from 'date-fns';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function ScheduleViewerTab() {
   const { staff, shifts, roles, tours, schedules, currentWeek } = useData();
@@ -36,7 +36,7 @@ function ScheduleViewerTab() {
   const scheduleRef = useRef(null);
 
   // Get week dates
-  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 });
+  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 0 });
   const weekDates = DAYS_OF_WEEK.map((_, index) => addDays(weekStart, index));
 
   // Load week schedule when week changes
