@@ -10,6 +10,10 @@ import ShiftCreationTab from './components/ShiftCreationTab';
 import ScheduleBuilderTab from './components/ScheduleBuilderTab';
 import ScheduleViewerTab from './components/ScheduleViewerTab';
 import DataManagement from './components/DataManagement';
+import AccountManagementTab from './components/AccountManagementTab';
+import StaffDashboard from './components/StaffDashboard';
+import StaffRegistration from './components/StaffRegistration';
+import LoginForm from './components/LoginForm';
 import ProtectedRoute from './components/ProtectedRoute';
 import { DataProvider } from './context/DataContext';
 import { AuthProvider } from './context/AuthContext';
@@ -33,13 +37,13 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <DataProvider>
-          <Router>
-            <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-              <Navigation />
-              <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-                <Routes>
-                  <Route path="/" element={<Navigate to="/viewer" replace />} />
+      <DataProvider>
+        <Router>
+          <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+            <Navigation />
+            <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+              <Routes>
+                  <Route path="/" element={<Navigate to="/login" replace />} />
                   
                   {/* Manager-only routes */}
                   <Route path="/staff" element={
@@ -67,6 +71,11 @@ function App() {
                       <DataManagement />
                     </ProtectedRoute>
                   } />
+                  <Route path="/accounts" element={
+                    <ProtectedRoute requiredRole="manager">
+                      <AccountManagementTab />
+                    </ProtectedRoute>
+                  } />
                   
                   {/* Supervisor and above routes */}
                   <Route path="/builder" element={
@@ -81,11 +90,20 @@ function App() {
                       <ScheduleViewerTab />
                     </ProtectedRoute>
                   } />
-                </Routes>
-              </Box>
+                  <Route path="/dashboard" element={
+                    <ProtectedRoute requiredRole="staff">
+                      <StaffDashboard />
+                    </ProtectedRoute>
+                  } />
+                  
+                  {/* Public routes */}
+                  <Route path="/login" element={<LoginForm />} />
+                  <Route path="/register" element={<StaffRegistration />} />
+              </Routes>
             </Box>
-          </Router>
-        </DataProvider>
+          </Box>
+        </Router>
+      </DataProvider>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -29,12 +29,14 @@ function Navigation() {
     { label: 'Roles', path: '/roles' },
     { label: 'Tours', path: '/tours' },
     { label: 'Shifts', path: '/shifts' },
+    { label: 'Accounts', path: '/accounts' },
   ];
 
   // Main tabs (role-based visibility)
   const allMainTabs = [
     { label: 'Builder', path: '/builder', requiredRole: 'supervisor' },
     { label: 'Viewer', path: '/viewer', requiredRole: 'staff' },
+    { label: 'Dashboard', path: '/dashboard', requiredRole: 'staff' },
     { label: 'Data', path: '/data', requiredRole: 'manager' },
   ];
 

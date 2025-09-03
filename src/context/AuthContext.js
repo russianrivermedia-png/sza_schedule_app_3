@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { accountHelpers } from '../lib/supabaseHelpers';
 
 const AuthContext = createContext();
 
@@ -104,11 +105,24 @@ export function AuthProvider({ children }) {
     return userLevel >= requiredLevel;
   };
 
+  const getStaffMember = async () => {
+    if (!user) return null;
+    
+    try {
+      const staffMember = await accountHelpers.getStaffByUserId(user.id);
+      return staffMember;
+    } catch (error) {
+      console.error('Error getting staff member:', error);
+      return null;
+    }
+  };
+
   const value = {
     user,
     login,
     logout,
     hasPermission,
+    getStaffMember,
     loading
   };
 

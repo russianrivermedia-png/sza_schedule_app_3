@@ -141,26 +141,26 @@ function StaffTab() {
         phone: formData.phone || null,
         target_shifts: formData.targetShifts || 5,
       });
-      const staffData = {
+    const staffData = {
         name: formData.name.trim(),
         hire_date: formData.hireDate || null,
         staff_color: 'gray', // Default color
         trained_roles: formData.trainedRoles,
-        availability: formData.availability,
+      availability: formData.availability,
         email: formData.email || null,
         phone: formData.phone || null,
         target_shifts: formData.targetShifts || 5,
-      };
+    };
 
-      if (editingStaff) {
+    if (editingStaff) {
         const updatedStaff = await staffHelpers.update(editingStaff.id, staffData);
         dispatch({ type: 'UPDATE_STAFF', payload: updatedStaff });
-      } else {
+    } else {
         const newStaff = await staffHelpers.add(staffData);
         dispatch({ type: 'ADD_STAFF', payload: newStaff });
-      }
+    }
 
-      handleCloseDialog();
+    handleCloseDialog();
     } catch (error) {
       console.error('Error saving staff:', error);
       console.error('Error details:', error.message);
@@ -173,7 +173,7 @@ function StaffTab() {
     if (window.confirm('Are you sure you want to delete this staff member?')) {
       try {
         await staffHelpers.delete(staffId);
-        dispatch({ type: 'DELETE_STAFF', payload: staffId });
+      dispatch({ type: 'DELETE_STAFF', payload: staffId });
       } catch (error) {
         console.error('Error deleting staff:', error);
         alert('Error deleting staff member. Please try again.');
@@ -441,25 +441,18 @@ function StaffTab() {
           <Button
             variant="outlined"
             startIcon={<EventIcon />}
-            onClick={() => setTimeOffDialogOpen(true)}
-          >
-            Time Off Request
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<EventIcon />}
             onClick={() => setTimeOffListOpen(true)}
           >
-            View Time Off Requests
+            View All Time Off Requests
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog()}
-          >
-            Add Staff Member
-          </Button>
-        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => handleOpenDialog()}
+        >
+          Add Staff Member
+        </Button>
+      </Box>
       </Box>
 
         {/* Results Summary */}
@@ -482,10 +475,10 @@ function StaffTab() {
           return null;
         })()}
 
-        <Grid container spacing={3}>
+      <Grid container spacing={3}>
           {getFilteredAndSortedStaff().map((member) => {
-           const availabilityStatus = getStaffAvailabilityStatus(member);
-           const timeOffRequests = getStaffTimeOff(member.id);
+          const availabilityStatus = getStaffAvailabilityStatus(member);
+          const timeOffRequests = getStaffTimeOff(member.id);
           
           return (
             <Grid item xs={12} md={6} lg={4} key={member.id}>
@@ -528,8 +521,8 @@ function StaffTab() {
                        <Typography component="span" variant="body2" color="primary" sx={{ ml: 1 }}>
                          ({calculateTenure(member.hire_date)})
                        </Typography>
-                     </Typography>
-                   )}
+                    </Typography>
+                  )}
 
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="body2" gutterBottom>
@@ -660,6 +653,24 @@ function StaffTab() {
                     />
                   ))}
                 </FormGroup>
+
+                {/* Time Off Request Button */}
+                <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<EventIcon />}
+                    onClick={() => {
+                      setTimeOffForm({
+                        ...timeOffForm,
+                        staffId: editingStaff.id
+                      });
+                      setTimeOffDialogOpen(true);
+                    }}
+                    fullWidth
+                  >
+                    Request Time Off for {editingStaff.name}
+                  </Button>
+                </Box>
               </Box>
               
               {/* Right Panel - Role Assignment History */}
@@ -673,31 +684,31 @@ function StaffTab() {
             </Box>
           ) : (
             <Box sx={{ pt: 1, p: 3 }}>
-              <TextField
-                fullWidth
-                label="Name *"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            <TextField
+              fullWidth
+              label="Name *"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 onKeyPress={handleKeyPress}
                 inputRef={nameInputRef}
-                margin="normal"
-                required
-              />
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                margin="normal"
-              />
+              margin="normal"
+              required
+            />
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Phone"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              margin="normal"
+            />
               <TextField
                 fullWidth
                 label="Hire Date"
@@ -706,53 +717,53 @@ function StaffTab() {
                 onChange={(e) => setFormData({ ...formData, hireDate: e.target.value })}
                 margin="normal"
                 InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                fullWidth
-                label="Target Shifts per Week"
-                type="number"
-                value={formData.targetShifts}
-                onChange={(e) => setFormData({ ...formData, targetShifts: parseInt(e.target.value) || 0 })}
-                margin="normal"
-                inputProps={{ min: 0, max: 7 }}
-              />
+            />
+            <TextField
+              fullWidth
+              label="Target Shifts per Week"
+              type="number"
+              value={formData.targetShifts}
+              onChange={(e) => setFormData({ ...formData, targetShifts: parseInt(e.target.value) || 0 })}
+              margin="normal"
+              inputProps={{ min: 0, max: 7 }}
+            />
 
-              <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
-                Availability
-              </Typography>
-              <FormGroup row>
-                {DAYS_OF_WEEK.map((day) => (
-                  <FormControlLabel
-                    key={day}
-                    control={
-                      <Switch
-                        checked={formData.availability.includes(day)}
-                        onChange={() => handleAvailabilityChange(day)}
-                      />
-                    }
-                    label={day}
-                  />
-                ))}
-              </FormGroup>
+            <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+              Availability
+            </Typography>
+            <FormGroup row>
+              {DAYS_OF_WEEK.map((day) => (
+                <FormControlLabel
+                  key={day}
+                  control={
+                    <Switch
+                      checked={formData.availability.includes(day)}
+                      onChange={() => handleAvailabilityChange(day)}
+                    />
+                  }
+                  label={day}
+                />
+              ))}
+            </FormGroup>
 
-              <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
-                Trained Roles
-              </Typography>
-              <FormGroup row>
-                {roles.map((role) => (
-                  <FormControlLabel
-                    key={role.id}
-                    control={
-                      <Switch
-                        checked={formData.trainedRoles.includes(role.id)}
-                        onChange={() => handleTrainedRolesChange(role.id)}
-                      />
-                    }
-                    label={role.name}
-                  />
-                ))}
-              </FormGroup>
-            </Box>
+            <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+              Trained Roles
+            </Typography>
+            <FormGroup row>
+              {roles.map((role) => (
+                <FormControlLabel
+                  key={role.id}
+                  control={
+                    <Switch
+                      checked={formData.trainedRoles.includes(role.id)}
+                      onChange={() => handleTrainedRolesChange(role.id)}
+                    />
+                  }
+                  label={role.name}
+                />
+              ))}
+            </FormGroup>
+          </Box>
           )}
         </DialogContent>
         <DialogActions>
@@ -765,23 +776,11 @@ function StaffTab() {
 
       {/* Time Off Request Dialog */}
       <Dialog open={timeOffDialogOpen} onClose={() => setTimeOffDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Request Time Off</DialogTitle>
+        <DialogTitle>
+          Request Time Off for {timeOffForm.staffId ? staff.find(s => s.id === timeOffForm.staffId)?.name : 'Staff Member'}
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 1 }}>
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Staff Member *</InputLabel>
-              <Select
-                value={timeOffForm.staffId}
-                onChange={(e) => setTimeOffForm({ ...timeOffForm, staffId: e.target.value })}
-                label="Staff Member *"
-              >
-                {staff.map((member) => (
-                  <MenuItem key={member.id} value={member.id}>
-                    {member.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
 
             <TextField
               fullWidth
@@ -826,7 +825,16 @@ function StaffTab() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTimeOffDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => {
+            setTimeOffDialogOpen(false);
+            setTimeOffForm({
+              staffId: '',
+              startDate: '',
+              endDate: '',
+              reason: '',
+              isApproved: false,
+            });
+          }}>Cancel</Button>
           <Button onClick={handleTimeOffSubmit} variant="contained">
             Submit Request
           </Button>

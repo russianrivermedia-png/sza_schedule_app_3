@@ -351,3 +351,190 @@ export const roleAssignmentsHelpers = {
     if (error) throw error;
   }
 };
+
+// Account Management Helpers
+export const accountHelpers = {
+  // Link staff to user account
+  async linkStaffToUser(staffId, userId) {
+    const { data, error } = await supabase
+      .from('staff')
+      .update({ 
+        user_id: userId, 
+        account_status: 'active' 
+      })
+      .eq('id', staffId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Unlink staff from user account
+  async unlinkStaffFromUser(staffId) {
+    const { data, error } = await supabase
+      .from('staff')
+      .update({ 
+        user_id: null, 
+        account_status: 'no_account' 
+      })
+      .eq('id', staffId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Update account status
+  async updateAccountStatus(staffId, status) {
+    const { data, error } = await supabase
+      .from('staff')
+      .update({ account_status: status })
+      .eq('id', staffId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Get staff with account information
+  async getStaffWithAccounts() {
+    const { data, error } = await supabase
+      .from('staff')
+      .select(`
+        *,
+        user_id,
+        account_status
+      `)
+      .order('name');
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Get staff by user ID
+  async getStaffByUserId(userId) {
+    const { data, error } = await supabase
+      .from('staff')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+};
+
+// Staff Verification Helpers
+export const staffVerificationHelpers = {
+  // Create verification code
+  async createVerificationCode(staffId, email) {
+    const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours
+
+    const { data, error } = await supabase
+      .from('staff_verification')
+      .insert({
+        staff_id: staffId,
+        verification_code: verificationCode,
+        email: email,
+        expires_at: expiresAt.toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Verify code
+  async verifyCode(verificationCode) {
+    const { data, error } = await supabase
+      .from('staff_verification')
+      .select(`
+        *,
+        staff:staff_id(*)
+      `)
+      .eq('verification_code', verificationCode)
+      .eq('is_used', false)
+      .gt('expires_at', new Date().toISOString())
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Mark code as used
+  async markCodeAsUsed(verificationId) {
+    const { data, error } = await supabase
+      .from('staff_verification')
+      .update({ is_used: true })
+      .eq('id', verificationId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Get verification by staff ID
+  async getByStaffId(staffId) {
+    const { data, error } = await supabase
+      .from('staff_verification')
+      .select('*')
+      .eq('staff_id', staffId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+};
+
+// Account Audit Helpers
+export const accountAuditHelpers = {
+  // Log account action
+  async logAction(staffId, action, performedBy = null, notes = null) {
+    const { data, error } = await supabase
+      .from('account_audit')
+      .insert({
+        staff_id: staffId,
+        action: action,
+        performed_by: performedBy,
+        notes: notes
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Get audit history for staff
+  async getByStaffId(staffId) {
+    const { data, error } = await supabase
+      .from('account_audit')
+      .select('*')
+      .eq('staff_id', staffId)
+      .order('performed_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Get all audit history
+  async getAll() {
+    const { data, error } = await supabase
+      .from('account_audit')
+      .select(`
+        *,
+        staff:staff_id(name)
+      `)
+      .order('performed_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+};
