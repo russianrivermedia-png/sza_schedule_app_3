@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { format } from 'date-fns';
 
 // Staff operations
 export const staffHelpers = {
@@ -329,7 +330,10 @@ export const timeOffHelpers = {
 
 // Role Assignments Helpers
 export const roleAssignmentsHelpers = {
-  async add(staffId, role, shiftId = null, tourId = null, weekKey = null, isManual = false, createdBy = null) {
+  async add(staffId, role, shiftId = null, tourId = null, weekKey = null, isManual = false, createdBy = null, assignmentDate = null) {
+    // Use the provided assignment date, or default to current time
+    const assignmentDateToUse = assignmentDate || new Date().toISOString();
+    
     const { data, error } = await supabase
       .from('role_assignments')
       .insert({
@@ -338,7 +342,7 @@ export const roleAssignmentsHelpers = {
         shift_id: shiftId,
         tour_id: tourId,
         week_key: weekKey,
-        assignment_date: new Date().toISOString(),
+        assignment_date: assignmentDateToUse,
         is_manual: isManual,
         created_by: createdBy
       })
@@ -384,6 +388,67 @@ export const roleAssignmentsHelpers = {
       .eq('id', assignmentId);
 
     if (error) throw error;
+  },
+
+  async getAssignmentsForWeek(weekStart, weekEnd) {
+    // Get assignments for the specific week by filtering on assignment_date
+    const startOfWeek = new Date(weekStart);
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const endOfWeek = new Date(weekEnd);
+    endOfWeek.setHours(23, 59, 59, 999);
+    
+    console.log('🔍 Database query dates:', {
+      startOfWeek: startOfWeek.toISOString(),
+      endOfWeek: endOfWeek.toISOString()
+    });
+    
+    // First, let's see what's actually in the database
+    const { data: sampleData, error: sampleError } = await supabase
+      .from('role_assignments')
+      .select('staff_id, role, assignment_date, created_at')
+      .limit(5);
+    
+    if (sampleError) throw sampleError;
+    console.log('🔍 Sample role_assignments data:', sampleData);
+    console.log('🔍 Sample assignment dates:', sampleData?.map(d => ({
+      assignment_date: d.assignment_date,
+      created_at: d.created_at,
+      isCurrentWeek: d.assignment_date >= startOfWeek.toISOString() && d.assignment_date <= endOfWeek.toISOString()
+    })));
+    
+    const { data, error } = await supabase
+      .from('role_assignments')
+      .select('staff_id, role, assignment_date')
+      .gte('assignment_date', startOfWeek.toISOString())
+      .lte('assignment_date', endOfWeek.toISOString());
+
+    if (error) throw error;
+    console.log('🔍 Filtered assignments count:', data?.length || 0);
+    return data || [];
+  },
+
+  async clearWeekAssignments(weekStart, weekEnd) {
+    const startOfWeek = new Date(weekStart);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(weekEnd);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    console.log('🗑️ Clearing assignments for week:', {
+      startOfWeek: startOfWeek.toISOString(),
+      endOfWeek: endOfWeek.toISOString()
+    });
+
+    const { error } = await supabase
+      .from('role_assignments')
+      .delete()
+      .gte('assignment_date', startOfWeek.toISOString())
+      .lte('assignment_date', endOfWeek.toISOString());
+
+    if (error) throw error;
+    console.log('✅ Week assignments cleared successfully');
+    return true;
   }
 };
 

@@ -178,6 +178,55 @@ export function DataProvider({ children }) {
       if (schedulesResult.error) throw schedulesResult.error;
       if (timeOffResult.error) throw timeOffResult.error;
 
+      // Debug: Log staff data to check availability structure
+      const staffDebug = staffResult.data?.map(s => ({
+        name: s.name,
+        availability: s.availability,
+        targetShifts: s.targetShifts,
+        trained_roles: s.trained_roles,
+        availabilityType: typeof s.availability,
+        availabilityIsArray: Array.isArray(s.availability)
+      }));
+      console.log('🔍 STAFF DATA DEBUG:', staffDebug);
+      
+      // Check if availability needs parsing
+      if (staffResult.data) {
+        staffResult.data.forEach(staff => {
+          if (typeof staff.availability === 'string') {
+            try {
+              staff.availability = JSON.parse(staff.availability);
+              console.log(`🔍 Parsed availability for ${staff.name}:`, staff.availability);
+            } catch (e) {
+              console.log(`🔍 Could not parse availability for ${staff.name}:`, staff.availability);
+            }
+          }
+        });
+      }
+      
+      // Also log individual staff for Nathan and Will specifically
+      const nathan = staffResult.data?.find(s => s.name === 'Nathan');
+      const will = staffResult.data?.find(s => s.name === 'Will');
+      if (nathan) {
+        console.log('🔍 NATHAN DATA:', {
+          name: nathan.name,
+          availability: nathan.availability,
+          availabilityType: typeof nathan.availability,
+          availabilityIsArray: Array.isArray(nathan.availability),
+          trained_roles: nathan.trained_roles,
+          targetShifts: nathan.targetShifts
+        });
+      }
+      if (will) {
+        console.log('🔍 WILL DATA:', {
+          name: will.name,
+          availability: will.availability,
+          availabilityType: typeof will.availability,
+          availabilityIsArray: Array.isArray(will.availability),
+          trained_roles: will.trained_roles,
+          targetShifts: will.targetShifts
+        });
+      }
+
       // Dispatch data
       dispatch({ type: 'SET_STAFF', payload: staffResult.data || [] });
       dispatch({ type: 'SET_ROLES', payload: rolesResult.data || [] });

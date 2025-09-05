@@ -116,35 +116,54 @@ function DroppableRole({ role, assignedStaff, conflicts, onStaffDrop, onRemoveSt
                   const staffId = e.target.value;
                   setSelectedStaffId(staffId);
                   if (staffId) {
-                    // Check for time off conflicts before assignment
+                    // Check for conflicts before assignment
                     const staffMember = staff.find(s => s.id === staffId);
-                    if (staffMember && timeOffRequests && day) {
+                    if (staffMember && day) {
                       const dayKey = day.toISOString().split('T')[0];
-                      const staffTimeOff = timeOffRequests.filter(t => t.staff_id === staffId);
-                      const hasTimeOffOnDay = staffTimeOff.some(timeOff => 
-                        timeOff.status === 'approved' &&
-                        new Date(timeOff.start_date) <= new Date(dayKey) &&
-                        new Date(timeOff.end_date) >= new Date(dayKey)
-                      );
+                      const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][day.getDay()];
                       
-                      if (hasTimeOffOnDay) {
-                        const timeOffRequest = staffTimeOff.find(timeOff => 
-                          timeOff.status === 'approved' &&
-                          new Date(timeOff.start_date) <= new Date(dayKey) &&
-                          new Date(timeOff.end_date) >= new Date(dayKey)
-                        );
-                        
-                        const startDate = new Date(timeOffRequest.start_date).toLocaleDateString();
-                        const endDate = new Date(timeOffRequest.end_date).toLocaleDateString();
-                        
+                      // Check availability
+                      const staffAvailability = staffMember.availability || [];
+                      if (!staffAvailability.includes(dayOfWeek)) {
                         const confirmAssignment = window.confirm(
-                          `⚠️ CONFLICT WARNING: ${staffMember.name} has approved time off from ${startDate} to ${endDate}.\n\n` +
+                          `⚠️ AVAILABILITY WARNING: ${staffMember.name} is not available on ${dayOfWeek}.\n\n` +
                           `Are you sure you want to assign them to work on ${new Date(dayKey).toLocaleDateString()}?`
                         );
                         
                         if (!confirmAssignment) {
                           setSelectedStaffId(''); // Reset selection
                           return; // Cancel the assignment
+                        }
+                      }
+                      
+                      // Check time off conflicts
+                      if (timeOffRequests) {
+                        const staffTimeOff = timeOffRequests.filter(t => t.staff_id === staffId);
+                        const hasTimeOffOnDay = staffTimeOff.some(timeOff => 
+                          timeOff.status === 'approved' &&
+                          new Date(timeOff.start_date) <= new Date(dayKey) &&
+                          new Date(timeOff.end_date) >= new Date(dayKey)
+                        );
+                        
+                        if (hasTimeOffOnDay) {
+                          const timeOffRequest = staffTimeOff.find(timeOff => 
+                            timeOff.status === 'approved' &&
+                            new Date(timeOff.start_date) <= new Date(dayKey) &&
+                            new Date(timeOff.end_date) >= new Date(dayKey)
+                          );
+                          
+                          const startDate = new Date(timeOffRequest.start_date).toLocaleDateString();
+                          const endDate = new Date(timeOffRequest.end_date).toLocaleDateString();
+                          
+                          const confirmAssignment = window.confirm(
+                            `⚠️ TIME OFF CONFLICT: ${staffMember.name} has approved time off from ${startDate} to ${endDate}.\n\n` +
+                            `Are you sure you want to assign them to work on ${new Date(dayKey).toLocaleDateString()}?`
+                          );
+                          
+                          if (!confirmAssignment) {
+                            setSelectedStaffId(''); // Reset selection
+                            return; // Cancel the assignment
+                          }
                         }
                       }
                     }
