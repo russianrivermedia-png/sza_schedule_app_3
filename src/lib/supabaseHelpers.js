@@ -289,6 +289,41 @@ export const timeOffHelpers = {
     
     if (error) throw error;
     return data;
+  },
+
+  // Optimized query for time off conflicts within a date range
+  async getConflictsForWeek(weekStart, weekEnd) {
+    // Format dates as ISO strings for Supabase
+    const weekStartISO = weekStart.toISOString().split('T')[0];
+    const weekEndISO = weekEnd.toISOString().split('T')[0];
+    
+    const { data, error } = await supabase
+      .from('time_off_requests')
+      .select('staff_id, start_date, end_date, id')
+      .eq('status', 'approved')
+      .gte('end_date', weekStartISO) // time off ends on or after week start
+      .lte('start_date', weekEndISO) // time off starts on or before week end
+      .order('staff_id, start_date');
+    
+    if (error) throw error;
+    return data;
+  },
+
+  // Get time off conflicts for a specific staff member and date
+  async getConflictsForStaffAndDate(staffId, date) {
+    // Format date as ISO string for Supabase
+    const dateISO = date.toISOString().split('T')[0];
+    
+    const { data, error } = await supabase
+      .from('time_off_requests')
+      .select('id, start_date, end_date')
+      .eq('staff_id', staffId)
+      .eq('status', 'approved')
+      .lte('start_date', dateISO) // time off starts on or before the date
+      .gte('end_date', dateISO)   // time off ends on or after the date
+    
+    if (error) throw error;
+    return data;
   }
 };
 
@@ -422,7 +457,13 @@ export const accountHelpers = {
       .eq('user_id', userId)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // If no staff record found, return null instead of throwing
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw error;
+    }
     return data;
   }
 };
@@ -490,6 +531,94 @@ export const staffVerificationHelpers = {
 
     if (error) throw error;
     return data || [];
+  }
+};
+
+// User Management Helpers
+export const userHelpers = {
+  // Get all users
+  async getAll() {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Get user by ID
+  async getById(userId) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Update user role
+  async updateRole(userId, newRole) {
+    const { data, error } = await supabase
+      .from('users')
+      .update({ role: newRole })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Update user details
+  async updateUser(userId, updates) {
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Delete user account
+  async deleteUser(userId) {
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId);
+
+    if (error) throw error;
+  },
+
+  // Get users with staff information
+  async getUsersWithStaff() {
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        *,
+        staff:staff_id(*)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Check if user exists
+  async userExists(userId) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows returned
+    return !!data;
   }
 };
 

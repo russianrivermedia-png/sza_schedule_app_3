@@ -33,7 +33,7 @@ import {
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { timeOffHelpers, roleAssignmentsHelpers } from '../lib/supabaseHelpers';
+import { timeOffHelpers, roleAssignmentsHelpers, staffHelpers } from '../lib/supabaseHelpers';
 import { format, startOfWeek, addDays } from 'date-fns';
 
 function StaffDashboard() {
@@ -43,9 +43,12 @@ function StaffDashboard() {
   const [timeOffDialogOpen, setTimeOffDialogOpen] = useState(false);
   const [timeOffForm, setTimeOffForm] = useState({
     startDate: '',
-    endDate: '',
-    reason: '',
-    type: 'vacation'
+    endDate: ''
+  });
+  const [editInfoDialogOpen, setEditInfoDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    email: '',
+    phone: ''
   });
   const [roleAssignments, setRoleAssignments] = useState([]);
   const [roleSummary, setRoleSummary] = useState({});
@@ -62,7 +65,7 @@ function StaffDashboard() {
       }
     };
     loadStaffData();
-  }, [user, getStaffMember]);
+  }, [user]);
 
   const loadRoleAssignments = async () => {
     try {
@@ -88,17 +91,13 @@ function StaffDashboard() {
         staff_id: staffMember.id,
         start_date: timeOffForm.startDate,
         end_date: timeOffForm.endDate,
-        reason: timeOffForm.reason,
-        type: timeOffForm.type,
         status: 'pending'
       });
 
       setTimeOffDialogOpen(false);
       setTimeOffForm({
         startDate: '',
-        endDate: '',
-        reason: '',
-        type: 'vacation'
+        endDate: ''
       });
       
       // Refresh data
@@ -109,38 +108,100 @@ function StaffDashboard() {
     }
   };
 
+  const handleEditInfo = () => {
+    setEditForm({
+      email: staffMember.email || '',
+      phone: staffMember.phone || ''
+    });
+    setEditInfoDialogOpen(true);
+  };
+
+  const handleEditInfoSubmit = async () => {
+    try {
+      await staffHelpers.update(staffMember.id, {
+        email: editForm.email,
+        phone: editForm.phone
+      });
+
+      // Update local state
+      setStaffMember(prev => ({
+        ...prev,
+        email: editForm.email,
+        phone: editForm.phone
+      }));
+
+      setEditInfoDialogOpen(false);
+      alert('Information updated successfully!');
+    } catch (error) {
+      console.error('Error updating information:', error);
+      alert('Error updating information. Please try again.');
+    }
+  };
+
+  const handleCancelTimeOffRequest = async (requestId) => {
+    if (window.confirm('Are you sure you want to cancel this time off request?')) {
+      try {
+        await timeOffHelpers.delete(requestId);
+        // Refresh data
+        window.location.reload();
+      } catch (error) {
+        console.error('Error canceling time off request:', error);
+        alert('Error canceling time off request. Please try again.');
+      }
+    }
+  };
+
   const getStaffTimeOff = () => {
     return timeOffRequests.filter(t => t.staff_id === staffMember.id);
   };
 
-  const getCurrentWeekSchedule = () => {
+  const getNext7DaysShifts = () => {
     const today = new Date();
-    const weekStart = startOfWeek(today, { weekStartsOn: 0 }); // Sunday
-    const weekKey = format(weekStart, 'yyyy-MM-dd');
+    const next7Days = [];
     
-    const weekSchedule = schedules.find(s => 
-      s.days && s.days.week_key === weekKey
-    );
+    // Generate next 7 days
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      next7Days.push({
+        date: date,
+        dayName: format(date, 'EEEE'), // Monday, Tuesday, etc.
+        dateString: format(date, 'yyyy-MM-dd'),
+        shifts: []
+      });
+    }
     
-    if (!weekSchedule) return null;
     
-    // Filter to show only this staff member's assignments
-    const staffAssignments = {};
-    Object.keys(weekSchedule.days).forEach(day => {
-      if (day !== 'week_key' && weekSchedule.days[day]) {
-        weekSchedule.days[day].forEach(shift => {
-          if (shift.assigned_staff && shift.assigned_staff.id === staffMember.id) {
-            if (!staffAssignments[day]) staffAssignments[day] = [];
-            staffAssignments[day].push({
-              ...shift,
-              role: shift.role || 'Unassigned'
+    // Find shifts for each day across all schedules
+    schedules.forEach((schedule) => {
+      if (schedule.days && typeof schedule.days === 'object') {
+        Object.keys(schedule.days).forEach(day => {
+          if (day !== 'week_key' && Array.isArray(schedule.days[day])) {
+            schedule.days[day].forEach((shift) => {
+              if (shift.assigned_staff && shift.assigned_staff.id === staffMember.id) {
+                // Try to match this shift to one of our next 7 days
+                next7Days.forEach(dayInfo => {
+                  // Check if this shift falls on this day
+                  if (shift.date === dayInfo.dateString || 
+                      (shift.start_date && shift.start_date === dayInfo.dateString) ||
+                      (shift.day && shift.day.toLowerCase() === dayInfo.dayName.toLowerCase())) {
+                    dayInfo.shifts.push({
+                      ...shift,
+                      role: shift.role || 'Unassigned',
+                      start_time: shift.start_time || 'TBD',
+                      end_time: shift.end_time || 'TBD'
+                    });
+                  }
+                });
+              }
             });
           }
         });
       }
     });
     
-    return staffAssignments;
+    // Filter out days with no shifts and return
+    return next7Days.filter(day => day.shifts.length > 0);
   };
 
   const getAvailabilityStatus = () => {
@@ -161,18 +222,55 @@ function StaffDashboard() {
     return { status: 'available', message: 'Available' };
   };
 
+  const getAverageShiftsPerWeek = () => {
+    if (!schedules || schedules.length === 0) return 0;
+
+    let totalShifts = 0;
+    let weeksCount = 0;
+
+    schedules.forEach(schedule => {
+      if (schedule.days && typeof schedule.days === 'object') {
+        let weekShifts = 0;
+        
+        Object.keys(schedule.days).forEach(day => {
+          if (day !== 'week_key' && Array.isArray(schedule.days[day])) {
+            schedule.days[day].forEach(shift => {
+              if (shift.assigned_staff && shift.assigned_staff.id === staffMember.id) {
+                weekShifts++;
+              }
+            });
+          }
+        });
+        
+        if (weekShifts > 0) {
+          totalShifts += weekShifts;
+          weeksCount++;
+        }
+      }
+    });
+
+    return weeksCount > 0 ? Math.round((totalShifts / weeksCount) * 10) / 10 : 0;
+  };
+
   if (!staffMember) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <Typography variant="h6" color="text.secondary">
-          Loading your dashboard...
-        </Typography>
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            {user ? 'No staff record found' : 'Loading your dashboard...'}
+          </Typography>
+          {user && (
+            <Typography variant="body2" color="text.secondary">
+              Your user account is not linked to a staff record. Please contact your manager to link your account.
+            </Typography>
+          )}
+        </Box>
       </Box>
     );
   }
 
   const availabilityStatus = getAvailabilityStatus();
-  const currentWeekSchedule = getCurrentWeekSchedule();
+  const next7DaysShifts = getNext7DaysShifts();
 
   return (
     <Box>
@@ -185,10 +283,20 @@ function StaffDashboard() {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                <PersonIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Personal Information
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  <PersonIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Personal Information
+                </Typography>
+                <Button
+                  size="small"
+                  startIcon={<EditIcon />}
+                  onClick={handleEditInfo}
+                  variant="outlined"
+                >
+                  Edit
+                </Button>
+              </Box>
               
               <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" gutterBottom>
@@ -211,6 +319,9 @@ function StaffDashboard() {
                     size="small"
                     sx={{ ml: 1 }}
                   />
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Avg Shifts/Week:</strong> {getAverageShiftsPerWeek()}
                 </Typography>
               </Box>
             </CardContent>
@@ -246,25 +357,28 @@ function StaffDashboard() {
           </Card>
         </Grid>
 
-        {/* Current Week Schedule */}
+        {/* Next 7 Days Shifts */}
         <Grid item xs={12}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 <EventIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                This Week's Schedule
+                Upcoming Shifts (Next 7 Days)
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Your scheduled shifts for the next 7 days
               </Typography>
               
-              {currentWeekSchedule && Object.keys(currentWeekSchedule).length > 0 ? (
+              {next7DaysShifts.length > 0 ? (
                 <Grid container spacing={2}>
-                  {Object.entries(currentWeekSchedule).map(([day, shifts]) => (
-                    <Grid item xs={12} sm={6} md={4} key={day}>
+                  {next7DaysShifts.map((dayInfo, index) => (
+                    <Grid item xs={12} sm={6} md={4} key={index}>
                       <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
                         <Typography variant="subtitle2" gutterBottom>
-                          {day}
+                          {dayInfo.dayName}, {format(dayInfo.date, 'MMM dd')}
                         </Typography>
-                        {shifts.map((shift, index) => (
-                          <Box key={index} sx={{ mb: 1 }}>
+                        {dayInfo.shifts.map((shift, shiftIndex) => (
+                          <Box key={shiftIndex} sx={{ mb: 1 }}>
                             <Typography variant="body2">
                               <strong>{shift.role}</strong>
                             </Typography>
@@ -279,7 +393,7 @@ function StaffDashboard() {
                 </Grid>
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  No assignments for this week
+                  No shifts scheduled for the next 7 days
                 </Typography>
               )}
             </CardContent>
@@ -309,17 +423,28 @@ function StaffDashboard() {
                     <ListItem key={request.id}>
                       <ListItemText
                         primary={`${format(new Date(request.start_date), 'MMM dd')} - ${format(new Date(request.end_date), 'MMM dd, yyyy')}`}
-                        secondary={`${request.reason} (${request.type})`}
+                        secondary={`Time off request`}
                       />
                       <ListItemSecondaryAction>
-                        <Chip
-                          label={request.status}
-                          color={
-                            request.status === 'approved' ? 'success' :
-                            request.status === 'pending' ? 'warning' : 'error'
-                          }
-                          size="small"
-                        />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip
+                            label={request.status}
+                            color={
+                              request.status === 'approved' ? 'success' :
+                              request.status === 'pending' ? 'warning' : 'error'
+                            }
+                            size="small"
+                          />
+                          {request.status === 'pending' && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleCancelTimeOffRequest(request.id)}
+                              color="error"
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          )}
+                        </Box>
                       </ListItemSecondaryAction>
                     </ListItem>
                   ))}
@@ -359,35 +484,43 @@ function StaffDashboard() {
               InputLabelProps={{ shrink: true }}
               required
             />
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Type</InputLabel>
-              <Select
-                value={timeOffForm.type}
-                onChange={(e) => setTimeOffForm({ ...timeOffForm, type: e.target.value })}
-                label="Type"
-              >
-                <MenuItem value="vacation">Vacation</MenuItem>
-                <MenuItem value="sick">Sick Leave</MenuItem>
-                <MenuItem value="personal">Personal</MenuItem>
-                <MenuItem value="other">Other</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              fullWidth
-              label="Reason"
-              multiline
-              rows={3}
-              value={timeOffForm.reason}
-              onChange={(e) => setTimeOffForm({ ...timeOffForm, reason: e.target.value })}
-              margin="normal"
-              required
-            />
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTimeOffDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleTimeOffSubmit} variant="contained">
             Submit Request
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Information Dialog */}
+      <Dialog open={editInfoDialogOpen} onClose={() => setEditInfoDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Personal Information</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <TextField
+              fullWidth
+              label="Email Address"
+              type="email"
+              value={editForm.email}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              margin="normal"
+              required
+            />
+            <TextField
+              fullWidth
+              label="Phone Number"
+              value={editForm.phone}
+              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+              margin="normal"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditInfoDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleEditInfoSubmit} variant="contained">
+            Save Changes
           </Button>
         </DialogActions>
       </Dialog>

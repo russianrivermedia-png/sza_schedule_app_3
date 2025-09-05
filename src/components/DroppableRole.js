@@ -21,7 +21,7 @@ import {
   Warning as WarningIcon,
 } from '@mui/icons-material';
 
-function DroppableRole({ role, assignedStaff, conflicts, onStaffDrop, onRemoveStaff, onStaffColorChange, staffColor, staff, roles }) {
+function DroppableRole({ role, assignedStaff, conflicts, onStaffDrop, onRemoveStaff, onStaffColorChange, staffColor, staff, roles, timeOffRequests, day }) {
   const [colorMenuAnchor, setColorMenuAnchor] = useState(null);
   const [selectedStaffId, setSelectedStaffId] = useState('');
   
@@ -116,6 +116,39 @@ function DroppableRole({ role, assignedStaff, conflicts, onStaffDrop, onRemoveSt
                   const staffId = e.target.value;
                   setSelectedStaffId(staffId);
                   if (staffId) {
+                    // Check for time off conflicts before assignment
+                    const staffMember = staff.find(s => s.id === staffId);
+                    if (staffMember && timeOffRequests && day) {
+                      const dayKey = day.toISOString().split('T')[0];
+                      const staffTimeOff = timeOffRequests.filter(t => t.staff_id === staffId);
+                      const hasTimeOffOnDay = staffTimeOff.some(timeOff => 
+                        timeOff.status === 'approved' &&
+                        new Date(timeOff.start_date) <= new Date(dayKey) &&
+                        new Date(timeOff.end_date) >= new Date(dayKey)
+                      );
+                      
+                      if (hasTimeOffOnDay) {
+                        const timeOffRequest = staffTimeOff.find(timeOff => 
+                          timeOff.status === 'approved' &&
+                          new Date(timeOff.start_date) <= new Date(dayKey) &&
+                          new Date(timeOff.end_date) >= new Date(dayKey)
+                        );
+                        
+                        const startDate = new Date(timeOffRequest.start_date).toLocaleDateString();
+                        const endDate = new Date(timeOffRequest.end_date).toLocaleDateString();
+                        
+                        const confirmAssignment = window.confirm(
+                          `⚠️ CONFLICT WARNING: ${staffMember.name} has approved time off from ${startDate} to ${endDate}.\n\n` +
+                          `Are you sure you want to assign them to work on ${new Date(dayKey).toLocaleDateString()}?`
+                        );
+                        
+                        if (!confirmAssignment) {
+                          setSelectedStaffId(''); // Reset selection
+                          return; // Cancel the assignment
+                        }
+                      }
+                    }
+                    
                     onStaffDrop(staffId);
                     setSelectedStaffId(''); // Reset selection
                   }
