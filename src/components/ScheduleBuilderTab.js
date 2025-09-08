@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
@@ -43,7 +43,7 @@ import {
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
-import { scheduleHelpers, roleAssignmentsHelpers, timeOffHelpers, shiftHelpers } from '../lib/supabaseHelpers';
+import { scheduleHelpers, roleAssignmentsHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import DroppableRole from './DroppableRole';
 import TourDisplay from './TourDisplay';
@@ -91,6 +91,7 @@ function ScheduleBuilderTab() {
 
   // Performance optimization: Conflict cache
   const [conflictCache, setConflictCache] = useState(new Map());
+  const [roleConflicts, setRoleConflicts] = useState(new Map());
   
   // Cache for time off conflicts by week
   const [timeOffConflictsCache, setTimeOffConflictsCache] = useState(new Map());
@@ -257,23 +258,35 @@ function ScheduleBuilderTab() {
     }
   };
 
-  // Performance optimization: Cached conflict checking
-  const getStaffConflicts = (staffId, day, roleId) => {
-    // Create cache key
-    const cacheKey = `${staffId}-${format(day, 'yyyy-MM-dd')}-${roleId}`;
+  // Preload conflicts for all current assignments
+  const preloadConflicts = useCallback(async () => {
+    const newConflicts = new Map();
     
-    // Check cache first
-    if (conflictCache.has(cacheKey)) {
-      return conflictCache.get(cacheKey);
+    for (const [dayKey, daySchedule] of Object.entries(weekSchedule)) {
+      if (daySchedule.shifts) {
+        for (const shift of daySchedule.shifts) {
+          if (shift.assignedStaff) {
+            for (const [roleId, staffId] of Object.entries(shift.assignedStaff)) {
+              if (staffId) {
+                const day = new Date(dayKey);
+                const conflicts = await getStaffConflictsInternal(staffId, day, roleId);
+                newConflicts.set(`${staffId}-${dayKey}-${roleId}`, conflicts);
+              }
+            }
+          }
+        }
+      }
     }
+    
+    setRoleConflicts(newConflicts);
+  }, [weekSchedule]);
 
+  // Internal conflict checking function (without cache)
+  const getStaffConflictsInternal = async (staffId, day, roleId) => {
     const conflicts = [];
-    const staffMember = getStaffById(staffId); // Use optimized lookup
-    if (!staffMember) {
-      // Cache empty result
-      setConflictCache(prev => new Map(prev).set(cacheKey, conflicts));
-      return conflicts;
-    }
+    const staffMember = getStaffById(staffId);
+    
+    if (!staffMember) return conflicts;
 
     // Check availability
     const dayOfWeek = DAYS_OF_WEEK[day.getDay()];
@@ -281,52 +294,17 @@ function ScheduleBuilderTab() {
       conflicts.push('Not available on this day');
     }
 
-    // Check time off requests using optimized database query
-    // Note: This is a synchronous function, so we'll use the cached time off conflicts
-    const weekKey = format(weekStart, 'yyyy-MM-dd');
-    const timeOffConflicts = timeOffConflictsCache.get(weekKey);
-    
-    if (timeOffConflicts && timeOffConflicts.has(staffId)) {
-      const staffTimeOffConflicts = timeOffConflicts.get(staffId);
-      const hasTimeOff = staffTimeOffConflicts.some(t => 
-        isSameDay(new Date(t.start_date), day) || 
-        isSameDay(new Date(t.end_date), day) ||
-        (new Date(t.start_date) <= day && new Date(t.end_date) >= day)
-      );
-      
-      if (hasTimeOff) {
-        const timeOffRequest = staffTimeOffConflicts.find(t => 
-          isSameDay(new Date(t.start_date), day) || 
-          isSameDay(new Date(t.end_date), day) ||
-          (new Date(t.start_date) <= day && new Date(t.end_date) >= day)
-        );
-        
-        const startDate = new Date(timeOffRequest.start_date).toLocaleDateString();
-        const endDate = new Date(timeOffRequest.end_date).toLocaleDateString();
-        conflicts.push(`Has approved time off (${startDate} - ${endDate})`);
-      }
-    } else {
-      // Fallback to old method if cache is not available
-      const staffTimeOff = getTimeOffByStaffId(staffId);
-      const hasTimeOff = staffTimeOff.some(t => 
-        t.status === 'approved' &&
-        (isSameDay(new Date(t.start_date), day) || 
-         isSameDay(new Date(t.end_date), day) ||
-         (new Date(t.start_date) <= day && new Date(t.end_date) >= day))
-      );
-      
-      if (hasTimeOff) {
-        const timeOffRequest = staffTimeOff.find(t => 
-          t.status === 'approved' &&
-          (isSameDay(new Date(t.start_date), day) || 
-           isSameDay(new Date(t.end_date), day) ||
-           (new Date(t.start_date) <= day && new Date(t.end_date) >= day))
-        );
-        
-        const startDate = new Date(timeOffRequest.start_date).toLocaleDateString();
-        const endDate = new Date(timeOffRequest.end_date).toLocaleDateString();
-        conflicts.push(`Has approved time off (${startDate} - ${endDate})`);
-      }
+    // Check time off conflicts
+    const timeOffConflicts = getTimeOffByStaffId(staffId);
+    const hasTimeOff = timeOffConflicts.some(t => {
+      const startDate = new Date(t.start_date);
+      const endDate = new Date(t.end_date);
+      const dayDate = new Date(day);
+      return dayDate >= startDate && dayDate <= endDate && t.status === 'approved';
+    });
+
+    if (hasTimeOff) {
+      conflicts.push('Has approved time off on this day');
     }
 
     // Check for double-booking on the same day
@@ -352,27 +330,51 @@ function ScheduleBuilderTab() {
       }
     }
 
-
     // Check role training
     if (!(staffMember.trained_roles || staffMember.trainedRoles || []).includes(roleId)) {
       conflicts.push('Not trained for this role');
     }
 
-    // Check weekly shift limit - use local count for now since database has issues
+    // Check weekly shift limit - count current assignments in the week
     const currentWeekShifts = Object.values(weekSchedule).flatMap(day => 
       day.shifts?.flatMap(shift => 
         Object.values(shift.assignedStaff).filter(id => id === staffId)
       ) || []
     ).length;
+    const targetShifts = staffMember.target_shifts || staffMember.targetShifts || 5;
     
-    if (currentWeekShifts >= (staffMember.targetShifts || 5)) {
-      conflicts.push(`Exceeds target shifts (${currentWeekShifts}/${staffMember.targetShifts || 5})`);
+    if (currentWeekShifts >= targetShifts) {
+      conflicts.push(`Exceeds target shifts (${currentWeekShifts}/${targetShifts})`);
     }
 
-    // Cache the result
-    setConflictCache(prev => new Map(prev).set(cacheKey, conflicts));
     return conflicts;
   };
+
+  // Performance optimization: Cached conflict checking
+  const getStaffConflicts = (staffId, day, roleId) => {
+    // Create cache key
+    const cacheKey = `${staffId}-${format(day, 'yyyy-MM-dd')}-${roleId}`;
+    
+    // Check preloaded conflicts first
+    if (roleConflicts.has(cacheKey)) {
+      return roleConflicts.get(cacheKey);
+    }
+    
+    // Check cache second
+    if (conflictCache.has(cacheKey)) {
+      return conflictCache.get(cacheKey);
+    }
+
+    // Fallback to empty array if not found
+    return [];
+  };
+
+  // Preload conflicts when weekSchedule changes
+  useEffect(() => {
+    if (Object.keys(weekSchedule).length > 0) {
+      preloadConflicts();
+    }
+  }, [weekSchedule]);
 
      const addShiftsToDay = (day, shiftIds) => {
      const dayKey = format(day, 'yyyy-MM-dd');
@@ -491,56 +493,36 @@ function ScheduleBuilderTab() {
             // Check target shifts before assignment
         const staffMember = getStaffById(staffId);
         if (staffMember) {
-          const targetShifts = staffMember.targetShifts || 5;
+          const targetShifts = staffMember.target_shifts || staffMember.targetShifts || 5;
 
-          // Count current week assignments from database
-          try {
-            const weekStart = startOfWeek(day, { weekStartsOn: 0 });
-            const weekEnd = addDays(weekStart, 6);
-            const currentWeekAssignments = await roleAssignmentsHelpers.getAssignmentsForWeek(weekStart, weekEnd);
-
-            console.log(`🔍 Target shifts check for ${staffMember.name}:`, {
-              weekStart: weekStart.toISOString(),
-              weekEnd: weekEnd.toISOString(),
-              totalAssignments: currentWeekAssignments.length,
-              targetShifts
-            });
-
-            // TEMPORARY FIX: If database returns too many assignments, use local count
-            let staffWeekAssignments;
-            if (currentWeekAssignments.length > 50) {
-              console.log('⚠️ Too many assignments from DB, using local count for target shifts check');
-              staffWeekAssignments = Object.values(weekSchedule).reduce((count, day) => {
-                if (day.shifts) {
-                  day.shifts.forEach(shift => {
-                    Object.values(shift.assignedStaff).forEach(assignedStaffId => {
-                      if (assignedStaffId === staffId) {
-                        count++;
-                      }
-                    });
-                  });
-                }
-                return count;
-              }, 0);
-            } else {
-              staffWeekAssignments = currentWeekAssignments.filter(a => a.staff_id === staffId).length;
+          // Count current week assignments from local schedule
+          const staffWeekAssignments = Object.values(weekSchedule).reduce((count, day) => {
+            if (day.shifts) {
+              day.shifts.forEach(shift => {
+                Object.values(shift.assignedStaff).forEach(assignedStaffId => {
+                  if (assignedStaffId === staffId) {
+                    count++;
+                  }
+                });
+              });
             }
+            return count;
+          }, 0);
 
-            console.log(`🔍 Final staff assignments for ${staffMember.name}:`, staffWeekAssignments);
+          console.log(`🔍 Target shifts check for ${staffMember.name}:`, {
+            staffWeekAssignments,
+            targetShifts
+          });
 
-            // Allow manual override with confirmation
-            if (staffWeekAssignments >= targetShifts) {
-              const override = window.confirm(
-                `⚠️ TARGET SHIFTS REACHED: ${staffMember.name} has already been assigned ${staffWeekAssignments}/${targetShifts} shifts this week.\n\n` +
-                `Do you want to override this limit and assign an additional shift?`
-              );
-              if (!override) {
-                return;
-              }
+          // Allow manual override with confirmation
+          if (staffWeekAssignments >= targetShifts) {
+            const override = window.confirm(
+              `⚠️ TARGET SHIFTS REACHED: ${staffMember.name} has already been assigned ${staffWeekAssignments}/${targetShifts} shifts this week.\n\n` +
+              `Do you want to override this limit and assign an additional shift?`
+            );
+            if (!override) {
+              return;
             }
-          } catch (error) {
-            console.error('Error checking target shifts:', error);
-            // Continue with assignment if check fails
           }
         }
     
@@ -888,23 +870,6 @@ function ScheduleBuilderTab() {
       }
       
       setWeekSchedule(clearedSchedule);
-      
-      // Also clear the shifts in the database by updating each shift
-      console.log('🗑️ Clearing staff assignments from shifts in database...');
-      for (let i = 0; i < 7; i++) {
-        const day = addDays(weekStart, i);
-        const dayKey = format(day, 'yyyy-MM-dd');
-        const daySchedule = weekSchedule[dayKey];
-        
-        if (daySchedule?.shifts) {
-          for (const shift of daySchedule.shifts) {
-            if (shift.shiftId && Object.keys(shift.assignedStaff || {}).length > 0) {
-              // Clear all staff assignments for this shift
-              await shiftHelpers.update(shift.shiftId, { assignedStaff: {} });
-            }
-          }
-        }
-      }
       
       // Save the cleared schedule to the database to ensure it persists
       console.log('💾 Saving cleared schedule to database...');

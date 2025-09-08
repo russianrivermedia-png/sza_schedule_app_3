@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { format } from 'date-fns';
+import { format, startOfWeek, addDays } from 'date-fns';
+import { roleAssignmentsHelpers } from '../lib/supabaseHelpers';
 
 const DataContext = createContext();
 
@@ -227,8 +228,34 @@ export function DataProvider({ children }) {
         });
       }
 
+      // Initialize staff with shift counts from database
+      const staffWithCounts = await Promise.all((staffResult.data || []).map(async (staff) => {
+        try {
+          // Get current week assignments for this staff member
+          const today = new Date();
+          const weekStart = startOfWeek(today, { weekStartsOn: 0 });
+          const weekEnd = addDays(weekStart, 6);
+          
+          const currentWeekAssignments = await roleAssignmentsHelpers.getAssignmentsForWeek(weekStart, weekEnd);
+          const currentWeekShifts = currentWeekAssignments.filter(a => a.staff_id === staff.id).length;
+          
+          return {
+            ...staff,
+            shiftCount: currentWeekShifts,
+            roleCounts: {}
+          };
+        } catch (error) {
+          console.warn(`Failed to load shift count for ${staff.name}:`, error);
+          return {
+            ...staff,
+            shiftCount: 0,
+            roleCounts: {}
+          };
+        }
+      }));
+
       // Dispatch data
-      dispatch({ type: 'SET_STAFF', payload: staffResult.data || [] });
+      dispatch({ type: 'SET_STAFF', payload: staffWithCounts });
       dispatch({ type: 'SET_ROLES', payload: rolesResult.data || [] });
       dispatch({ type: 'SET_SHIFTS', payload: shiftsResult.data || [] });
       dispatch({ type: 'SET_TOURS', payload: toursResult.data || [] });

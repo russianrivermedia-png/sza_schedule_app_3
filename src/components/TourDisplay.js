@@ -11,18 +11,12 @@ import {
   Circle as CircleIcon,
 } from '@mui/icons-material';
 
-const TOUR_COLORS = {
-  default: '#9e9e9e', // Gray
-  blue: '#2196f3',    // Blue
-  red: '#f44336',     // Red
-  yellow: '#ffeb3b',  // Yellow
-};
-
-const TOUR_COLOR_NAMES = {
-  default: 'Default',
-  blue: 'Confirmed',
-  red: 'Cancelled',
-  yellow: 'Open',
+// Default tour color options (should match TourCreationTab.js)
+const DEFAULT_TOUR_COLORS = {
+  default: { name: 'Default', color: '#9e9e9e' },
+  blue: { name: 'Confirmed', color: '#2196f3' },
+  red: { name: 'Cancelled', color: '#f44336' },
+  yellow: { name: 'Open', color: '#ffeb3b' },
 };
 
 function TourDisplay({ tours, tourColors, onTourColorChange, size = 'small' }) {
@@ -54,8 +48,9 @@ function TourDisplay({ tours, tourColors, onTourColorChange, size = 'small' }) {
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
       {tours.map((tour) => {
-        const tourColor = tourColors?.[tour.id] || 'default';
-        const backgroundColor = TOUR_COLORS[tourColor];
+        const tourColor = tourColors?.[tour.id] || tour.default_color || 'default';
+        const colorData = DEFAULT_TOUR_COLORS[tourColor] || { color: '#9e9e9e', name: 'Default' };
+        const backgroundColor = colorData.color;
         const textColor = tourColor === 'yellow' ? '#000' : '#fff';
 
         return (
