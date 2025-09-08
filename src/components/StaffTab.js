@@ -35,6 +35,7 @@ import {
   Event as EventIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
+  Palette as PaletteIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { format } from 'date-fns';
@@ -42,6 +43,20 @@ import { staffHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
 import RoleAssignmentPanel from './RoleAssignmentPanel';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+// Default staff color options
+const DEFAULT_STAFF_COLORS = {
+  default: { name: 'Default', color: '#9e9e9e' },
+  blue: { name: 'Blue', color: '#2196f3' },
+  red: { name: 'Red', color: '#f44336' },
+  green: { name: 'Green', color: '#4caf50' },
+  purple: { name: 'Purple', color: '#9c27b0' },
+  orange: { name: 'Orange', color: '#ff9800' },
+  yellow: { name: 'Yellow', color: '#ffeb3b' },
+  pink: { name: 'Pink', color: '#e91e63' },
+  teal: { name: 'Teal', color: '#009688' },
+  indigo: { name: 'Indigo', color: '#3f51b5' },
+};
 
 function StaffTab() {
   const { 
@@ -58,6 +73,9 @@ function StaffTab() {
   const [timeOffDialogOpen, setTimeOffDialogOpen] = useState(false);
   const [timeOffListOpen, setTimeOffListOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
+  const [openColorDialog, setOpenColorDialog] = useState(false);
+  const [editingColor, setEditingColor] = useState(null);
+  const [customColors, setCustomColors] = useState({});
   const nameInputRef = useRef(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -67,6 +85,12 @@ function StaffTab() {
     availability: DAYS_OF_WEEK,
     trainedRoles: [],
     targetShifts: 5,
+    staffColor: 'default',
+  });
+  const [colorFormData, setColorFormData] = useState({
+    key: '',
+    name: '',
+    color: '#000000',
   });
   const [timeOffForm, setTimeOffForm] = useState({
     staffId: '',
@@ -84,6 +108,77 @@ function StaffTab() {
   const [filterByRole, setFilterByRole] = useState('');
   const [filterByDays, setFilterByDays] = useState([]);
 
+  // Get all available colors (default + custom)
+  const getAllColors = () => {
+    return { ...DEFAULT_STAFF_COLORS, ...customColors };
+  };
+
+  // Color management functions
+  const handleOpenColorDialog = (color = null) => {
+    if (color) {
+      setEditingColor(color);
+      setColorFormData({
+        key: color.key,
+        name: color.name,
+        color: color.color,
+      });
+    } else {
+      setEditingColor(null);
+      setColorFormData({
+        key: '',
+        name: '',
+        color: '#000000',
+      });
+    }
+    setOpenColorDialog(true);
+  };
+
+  const handleCloseColorDialog = () => {
+    setOpenColorDialog(false);
+    setEditingColor(null);
+    setColorFormData({
+      key: '',
+      name: '',
+      color: '#000000',
+    });
+  };
+
+  const handleColorSubmit = () => {
+    if (!colorFormData.name.trim() || !colorFormData.key.trim()) return;
+
+    const newColor = {
+      key: colorFormData.key.trim(),
+      name: colorFormData.name.trim(),
+      color: colorFormData.color,
+    };
+
+    if (editingColor) {
+      // Update existing color
+      setCustomColors(prev => ({
+        ...prev,
+        [colorFormData.key]: newColor,
+      }));
+    } else {
+      // Add new color
+      setCustomColors(prev => ({
+        ...prev,
+        [colorFormData.key]: newColor,
+      }));
+    }
+
+    handleCloseColorDialog();
+  };
+
+  const handleDeleteColor = (colorKey) => {
+    if (window.confirm('Are you sure you want to delete this color? Staff using this color will revert to default.')) {
+      setCustomColors(prev => {
+        const newColors = { ...prev };
+        delete newColors[colorKey];
+        return newColors;
+      });
+    }
+  };
+
   const handleOpenDialog = (staff = null) => {
     if (staff) {
       setEditingStaff(staff);
@@ -95,6 +190,7 @@ function StaffTab() {
         availability: staff.availability || DAYS_OF_WEEK,
         trainedRoles: staff.trained_roles || [],
         targetShifts: staff.target_shifts || 5,
+        staffColor: staff.staff_color || 'default',
       });
     } else {
       setEditingStaff(null);
@@ -106,6 +202,7 @@ function StaffTab() {
         availability: DAYS_OF_WEEK,
         trainedRoles: [],
         targetShifts: 5,
+        staffColor: 'default',
       });
     }
     setOpenDialog(true);
@@ -122,6 +219,7 @@ function StaffTab() {
       availability: DAYS_OF_WEEK,
       trainedRoles: [],
       targetShifts: 5,
+      staffColor: 'default',
     });
   };
 
@@ -144,9 +242,9 @@ function StaffTab() {
     const staffData = {
         name: formData.name.trim(),
         hire_date: formData.hireDate || null,
-        staff_color: 'gray', // Default color
+        staff_color: formData.staffColor,
         trained_roles: formData.trainedRoles,
-      availability: formData.availability,
+        availability: formData.availability,
         email: formData.email || null,
         phone: formData.phone || null,
         target_shifts: formData.targetShifts || 5,
@@ -485,9 +583,21 @@ function StaffTab() {
               <Card>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                    <Typography variant="h6" component="div">
-                      {member.name}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box
+                        sx={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          backgroundColor: getAllColors()[member.staff_color || 'default']?.color || '#9e9e9e',
+                          border: '1px solid rgba(0,0,0,0.1)',
+                          flexShrink: 0
+                        }}
+                      />
+                      <Typography variant="h6" component="div">
+                        {member.name}
+                      </Typography>
+                    </Box>
                     <Box>
                       <IconButton
                         size="small"
@@ -559,6 +669,86 @@ function StaffTab() {
         })}
       </Grid>
 
+      {/* Staff Color Management Section */}
+      <Box sx={{ mt: 4 }}>
+        <Card>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">
+                <PaletteIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Staff Color Management
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={() => handleOpenColorDialog()}
+                size="small"
+              >
+                Add Custom Color
+              </Button>
+            </Box>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Manage custom colors for staff members. Default colors cannot be deleted.
+            </Typography>
+
+            <Grid container spacing={2}>
+              {Object.entries(getAllColors()).map(([key, color]) => (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={key}>
+                  <Box
+                    sx={{
+                      p: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        backgroundColor: color.color,
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        flexShrink: 0
+                      }}
+                    />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" noWrap>
+                        {color.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {color.color}
+                      </Typography>
+                    </Box>
+                    {!DEFAULT_STAFF_COLORS[key] && (
+                      <Box>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenColorDialog({ key, ...color })}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleDeleteColor(key)}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
+                    )}
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </CardContent>
+        </Card>
+      </Box>
+
       <Dialog 
         open={openDialog} 
         onClose={handleCloseDialog} 
@@ -617,6 +807,36 @@ function StaffTab() {
                   margin="normal"
                   inputProps={{ min: 0, max: 7 }}
                 />
+
+                <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                  Staff Color
+                </Typography>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Color</InputLabel>
+                  <Select
+                    value={formData.staffColor}
+                    onChange={(e) => setFormData({ ...formData, staffColor: e.target.value })}
+                    label="Color"
+                  >
+                    {Object.entries(getAllColors()).map(([key, color]) => (
+                      <MenuItem key={key} value={key}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box
+                            sx={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: '50%',
+                              backgroundColor: color.color,
+                              border: '1px solid rgba(0,0,0,0.1)',
+                              flexShrink: 0
+                            }}
+                          />
+                          {color.name}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
                 <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
                   Availability
@@ -727,6 +947,36 @@ function StaffTab() {
               margin="normal"
               inputProps={{ min: 0, max: 7 }}
             />
+
+            <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+              Staff Color
+            </Typography>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Color</InputLabel>
+              <Select
+                value={formData.staffColor}
+                onChange={(e) => setFormData({ ...formData, staffColor: e.target.value })}
+                label="Color"
+              >
+                {Object.entries(getAllColors()).map(([key, color]) => (
+                  <MenuItem key={key} value={key}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box
+                        sx={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          backgroundColor: color.color,
+                          border: '1px solid rgba(0,0,0,0.1)',
+                          flexShrink: 0
+                        }}
+                      />
+                      {color.name}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
             <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
               Availability
@@ -898,6 +1148,76 @@ function StaffTab() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTimeOffListOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Color Management Dialog */}
+      <Dialog open={openColorDialog} onClose={handleCloseColorDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingColor ? 'Edit Custom Color' : 'Add Custom Color'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <TextField
+              fullWidth
+              label="Color Key"
+              value={colorFormData.key}
+              onChange={(e) => setColorFormData({ ...colorFormData, key: e.target.value })}
+              margin="normal"
+              required
+              helperText="Unique identifier for the color (e.g., 'custom_red')"
+              disabled={!!editingColor}
+            />
+            <TextField
+              fullWidth
+              label="Color Name"
+              value={colorFormData.name}
+              onChange={(e) => setColorFormData({ ...colorFormData, name: e.target.value })}
+              margin="normal"
+              required
+              helperText="Display name for the color (e.g., 'Custom Red')"
+            />
+            <TextField
+              fullWidth
+              label="Hex Color Code"
+              value={colorFormData.color}
+              onChange={(e) => setColorFormData({ ...colorFormData, color: e.target.value })}
+              margin="normal"
+              required
+              placeholder="#FF0000"
+              helperText="Enter a valid hex color code (e.g., #FF0000 for red)"
+            />
+            
+            {/* Color Preview */}
+            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="body2">Preview:</Typography>
+              <Box
+                sx={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: 1,
+                  backgroundColor: colorFormData.color,
+                  border: '1px solid rgba(0,0,0,0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              />
+              <Typography variant="body2" color="text.secondary">
+                {colorFormData.color}
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseColorDialog}>Cancel</Button>
+          <Button 
+            onClick={handleColorSubmit} 
+            variant="contained"
+            disabled={!colorFormData.key.trim() || !colorFormData.name.trim() || !colorFormData.color.trim()}
+          >
+            {editingColor ? 'Update' : 'Add'} Color
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

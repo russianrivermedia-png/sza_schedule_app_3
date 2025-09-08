@@ -94,21 +94,21 @@ function TourDisplay({ tours, tourColors, onTourColorChange, size = 'small' }) {
           horizontal: 'left',
         }}
       >
-        {Object.entries(TOUR_COLORS).map(([colorKey, colorValue]) => (
+        {Object.entries(DEFAULT_TOUR_COLORS).map(([colorKey, colorData]) => (
           <MenuItem
             key={colorKey}
             onClick={() => handleColorSelect(colorKey)}
             sx={{
               '&:hover': {
-                backgroundColor: colorValue,
+                backgroundColor: colorData.color,
                 color: colorKey === 'yellow' ? '#000' : '#fff',
               },
             }}
           >
             <ListItemIcon>
-              <CircleIcon sx={{ color: colorValue }} />
+              <CircleIcon sx={{ color: colorData.color }} />
             </ListItemIcon>
-            <ListItemText primary={TOUR_COLOR_NAMES[colorKey]} />
+            <ListItemText primary={colorData.name} />
           </MenuItem>
         ))}
       </Menu>

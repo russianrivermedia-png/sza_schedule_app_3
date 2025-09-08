@@ -181,7 +181,13 @@ function TourCreationTab() {
       handleCloseDialog();
     } catch (error) {
       console.error('Error saving tour:', error);
-      alert(`Error saving tour: ${error.message}. Please try again.`);
+      
+      // Check if it's a column not found error
+      if (error.message.includes('default_color') && error.message.includes('schema cache')) {
+        alert(`Database schema needs to be updated. Please run this SQL in your database:\n\nALTER TABLE tours ADD COLUMN IF NOT EXISTS default_color TEXT DEFAULT 'default';\n\nThen try again.`);
+      } else {
+        alert(`Error saving tour: ${error.message}. Please try again.`);
+      }
     }
   };
 

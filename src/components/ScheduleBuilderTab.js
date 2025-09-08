@@ -311,22 +311,38 @@ function ScheduleBuilderTab() {
     const dayKey = format(day, 'yyyy-MM-dd');
     const daySchedule = weekSchedule[dayKey];
     if (daySchedule && daySchedule.shifts) {
-      // Check if staff is assigned to a DIFFERENT shift on this day
-      const isAssignedToDifferentShift = daySchedule.shifts.some(shift => 
-        Object.values(shift.assignedStaff).includes(staffId)
-      );
+      // Check if staff is assigned to a DIFFERENT role on this day
+      let isAssignedToDifferentRole = false;
+      let assignedRoles = [];
       
-      // Only show conflict if they're assigned to a different shift (not the current one)
-      if (isAssignedToDifferentShift) {
-        // Check if this is the same shift/role (which is allowed)
-        const currentShift = daySchedule.shifts.find(s => 
-          Object.values(s.assignedStaff).includes(staffId)
-        );
-        const isSameRole = currentShift && currentShift.assignedStaff[roleId] === staffId;
-        
-        if (!isSameRole) {
-          conflicts.push('Already assigned to another shift on this day');
-        }
+      daySchedule.shifts.forEach(shift => {
+        Object.entries(shift.assignedStaff).forEach(([assignedRoleId, assignedStaffId]) => {
+          // If this staff member is assigned to a different role on this day
+          if (assignedStaffId === staffId) {
+            assignedRoles.push(assignedRoleId);
+            if (assignedRoleId !== roleId) {
+              isAssignedToDifferentRole = true;
+            }
+          }
+        });
+      });
+      
+      // Debug logging
+      if (assignedRoles.length > 0) {
+        console.log(`🔍 Double-booking check for ${staffMember.name} on ${dayKey}:`, {
+          staffId,
+          roleId,
+          assignedRoles,
+          isAssignedToDifferentRole,
+          daySchedule: daySchedule.shifts.map(s => ({
+            shiftId: s.id,
+            assignedStaff: s.assignedStaff
+          }))
+        });
+      }
+      
+      if (isAssignedToDifferentRole) {
+        conflicts.push('Already assigned to another role on this day');
       }
     }
 
@@ -343,7 +359,7 @@ function ScheduleBuilderTab() {
     ).length;
     const targetShifts = staffMember.target_shifts || staffMember.targetShifts || 5;
     
-    if (currentWeekShifts >= targetShifts) {
+    if (currentWeekShifts > targetShifts) {
       conflicts.push(`Exceeds target shifts (${currentWeekShifts}/${targetShifts})`);
     }
 
@@ -372,6 +388,9 @@ function ScheduleBuilderTab() {
   // Preload conflicts when weekSchedule changes
   useEffect(() => {
     if (Object.keys(weekSchedule).length > 0) {
+      // Clear old cache first to prevent stale data
+      setRoleConflicts(new Map());
+      setConflictCache(new Map());
       preloadConflicts();
     }
   }, [weekSchedule]);
