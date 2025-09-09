@@ -43,6 +43,7 @@ import {
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
   Refresh as RefreshIcon,
   Merge as MergeIcon,
+  Save as SaveIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -1144,6 +1145,7 @@ function ScheduleBuilderTab() {
       });
     }
     
+    // Use the selected week's schedule data, not the current week's
     const newWeekSchedule = { ...weekSchedule };
     let totalRoles = 0;
     let assignedRoles = 0;
@@ -1161,9 +1163,28 @@ function ScheduleBuilderTab() {
       return;
     }
 
-      // Pre-load time off conflicts for the entire week to avoid repeated async calls
+    // Pre-load time off conflicts for the entire week to avoid repeated async calls
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     const weekEndDate = addDays(weekStart, 6);
+    
+    // Debug: Log the week being processed
+    console.log('🔍 Auto-assign: Processing week:', weekKey);
+    console.log('🔍 Auto-assign: Selected week:', selectedWeek);
+    console.log('🔍 Auto-assign: Week start:', weekStart);
+    console.log('🔍 Auto-assign: Week dates:', expectedDays);
+    console.log('🔍 Auto-assign: Schedule data keys:', actualDays);
+    console.log('🔍 Auto-assign: weekSchedule keys:', Object.keys(weekSchedule));
+    console.log('🔍 Auto-assign: newWeekSchedule keys:', Object.keys(newWeekSchedule));
+    
+    // Ensure we're only working on the selected week
+    const selectedWeekKey = format(startOfWeek(selectedWeek, { weekStartsOn: 0 }), 'yyyy-MM-dd');
+    if (weekKey !== selectedWeekKey) {
+      console.error('❌ WEEK MISMATCH: Auto-assign is trying to process wrong week!');
+      console.error('Expected week:', selectedWeekKey);
+      console.error('Processing week:', weekKey);
+      alert(`Error: Auto-assign is trying to process the wrong week. Expected ${selectedWeekKey} but got ${weekKey}. Please refresh and try again.`);
+      return;
+    }
     let timeOffConflicts = new Map();
     
     try {
@@ -1191,46 +1212,21 @@ function ScheduleBuilderTab() {
       weeklyStaffAssignments.set(s.id, 0);
     });
 
-    // Get current week assignments from database
-    try {
-      const currentWeekAssignments = await roleAssignmentsHelpers.getAssignmentsForWeek(weekStart, weekEndDate);
-      console.log('🔍 Auto-assign: Current week assignments from DB:', currentWeekAssignments.length);
-      
-      // TEMPORARY FIX: If we get too many assignments, assume database has issues and use local count
-      if (currentWeekAssignments.length > 50) {
-        console.log('⚠️ Too many assignments from DB, using local count instead');
-        Object.values(newWeekSchedule).forEach(day => {
-          if (day.shifts) {
-            day.shifts.forEach(shift => {
-              Object.values(shift.assignedStaff).forEach(staffId => {
-                if (staffId) {
-                  weeklyStaffAssignments.set(staffId, (weeklyStaffAssignments.get(staffId) || 0) + 1);
-                }
-              });
-            });
-          }
-        });
-      } else {
-        currentWeekAssignments.forEach(assignment => {
-          weeklyStaffAssignments.set(assignment.staff_id, (weeklyStaffAssignments.get(assignment.staff_id) || 0) + 1);
+    // Count assignments from the current week's schedule data (not database)
+    // This ensures we only count assignments from the week being processed
+    Object.values(newWeekSchedule).forEach(day => {
+      if (day.shifts) {
+        day.shifts.forEach(shift => {
+          Object.values(shift.assignedStaff).forEach(staffId => {
+            if (staffId) {
+              weeklyStaffAssignments.set(staffId, (weeklyStaffAssignments.get(staffId) || 0) + 1);
+            }
+          });
         });
       }
-      console.log('🔍 Auto-assign: Weekly staff assignments after processing:', Object.fromEntries(weeklyStaffAssignments));
-    } catch (error) {
-      console.error('Error loading current week assignments:', error);
-      // Fallback to counting from local state
-      Object.values(newWeekSchedule).forEach(day => {
-        if (day.shifts) {
-          day.shifts.forEach(shift => {
-            Object.values(shift.assignedStaff).forEach(staffId => {
-              if (staffId) {
-                weeklyStaffAssignments.set(staffId, (weeklyStaffAssignments.get(staffId) || 0) + 1);
-              }
-            });
-          });
-        }
-      });
-    }
+    });
+    
+    console.log('🔍 Auto-assign: Weekly staff assignments from current week schedule:', Object.fromEntries(weeklyStaffAssignments));
     
     for (const dayKey of Object.keys(newWeekSchedule)) {
       const day = newWeekSchedule[dayKey];
@@ -1243,6 +1239,7 @@ function ScheduleBuilderTab() {
       const dayAssignedStaff = new Set();
       
       // First, add existing staff to the day's assigned set to prevent conflicts
+      // This should be empty for a new week, but we check anyway
       day.shifts.forEach((shift, shiftIndex) => {
         Object.values(shift.assignedStaff).forEach(staffId => {
           if (staffId) {
@@ -1250,6 +1247,13 @@ function ScheduleBuilderTab() {
           }
         });
       });
+      
+      // Debug: Log what staff are already assigned on this day
+      if (dayAssignedStaff.size > 0) {
+        console.log(`🔍 Day ${dayOfWeek} already has assigned staff:`, Array.from(dayAssignedStaff));
+      } else {
+        console.log(`🔍 Day ${dayOfWeek} has no existing assignments - ready for auto-assign`);
+      }
       
       for (const [shiftIndex, shift] of day.shifts.entries()) {
         const updatedAssignedStaff = { ...shift.assignedStaff };
@@ -1783,14 +1787,16 @@ function ScheduleBuilderTab() {
             >
               Next Week
             </Button>
-            <Button
-              variant="contained"
-              startIcon={<AutoAssignIcon />}
-              onClick={autoAssignStaff}
-              disabled={isScheduleLocked && lockedBy !== currentUser?.id}
-            >
-              Auto Assign
-            </Button>
+            <Tooltip title={`Auto-assign staff for the week of ${format(weekStart, 'MMMM d, yyyy')}`}>
+              <Button
+                variant="contained"
+                startIcon={<AutoAssignIcon />}
+                onClick={autoAssignStaff}
+                disabled={isScheduleLocked && lockedBy !== currentUser?.id}
+              >
+                Auto Assign
+              </Button>
+            </Tooltip>
             <Button
               variant="outlined"
               color="error"
