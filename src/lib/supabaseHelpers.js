@@ -184,22 +184,91 @@ export const shiftHelpers = {
 // Schedule operations
 export const scheduleHelpers = {
   async add(scheduleData) {
+    const scheduleWithVersion = {
+      ...scheduleData,
+      version: 1,
+      last_modified_at: new Date().toISOString(),
+      is_locked: false
+    };
+    
     const { data, error } = await supabase
       .from('schedules')
-      .insert([scheduleData])
-      .select('id, days, created_at')
+      .insert([scheduleWithVersion])
+      .select('id, days, created_at, version, last_modified_by, last_modified_at, is_locked, locked_by, locked_at')
       .single();
     
     if (error) throw error;
     return data;
   },
 
-  async update(id, updates) {
+  async update(id, updates, expectedVersion = null, userId = null) {
+    // If version control is enabled, check version first
+    if (expectedVersion !== null) {
+      const { data: currentSchedule, error: fetchError } = await supabase
+        .from('schedules')
+        .select('version, is_locked, locked_by')
+        .eq('id', id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Check if schedule is locked by another user
+      if (currentSchedule.is_locked && currentSchedule.locked_by !== userId) {
+        throw new Error('Schedule is currently being edited by another user. Please try again later.');
+      }
+      
+      // Check version mismatch
+      if (currentSchedule.version !== expectedVersion) {
+        throw new Error('Schedule has been modified by another user. Please refresh and try again.');
+      }
+    }
+    
+    const updatesWithVersion = {
+      ...updates,
+      version: expectedVersion ? expectedVersion + 1 : undefined,
+      last_modified_at: new Date().toISOString(),
+      last_modified_by: userId
+    };
+    
     const { data, error } = await supabase
       .from('schedules')
-      .update(updates)
+      .update(updatesWithVersion)
       .eq('id', id)
-      .select('id, days, created_at')
+      .select('id, days, created_at, version, last_modified_by, last_modified_at, is_locked, locked_by, locked_at')
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async lockSchedule(id, userId) {
+    const { data, error } = await supabase
+      .from('schedules')
+      .update({
+        is_locked: true,
+        locked_by: userId,
+        locked_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .eq('is_locked', false) // Only lock if not already locked
+      .select('id, is_locked, locked_by, locked_at')
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async unlockSchedule(id, userId) {
+    const { data, error } = await supabase
+      .from('schedules')
+      .update({
+        is_locked: false,
+        locked_by: null,
+        locked_at: null
+      })
+      .eq('id', id)
+      .eq('locked_by', userId) // Only unlock if locked by current user
+      .select('id, is_locked, locked_by, locked_at')
       .single();
     
     if (error) throw error;

@@ -15,6 +15,7 @@ const initialState = {
   currentWeek: new Date(),
   loading: true,
   error: null,
+  activeEditors: new Map(), // Track who is editing what
 };
 
 // Performance optimization: Create efficient lookup indexes
@@ -128,6 +129,25 @@ function dataReducer(state, action) {
       };
     case 'SET_CURRENT_WEEK':
       return { ...state, currentWeek: action.payload };
+    case 'RELOAD_SCHEDULES':
+      // Trigger a reload of schedules data
+      return { ...state, schedules: [...state.schedules] };
+    case 'SET_ACTIVE_EDITOR':
+      const newActiveEditors = new Map(state.activeEditors);
+      if (action.payload.userId && action.payload.weekKey) {
+        newActiveEditors.set(action.payload.weekKey, {
+          userId: action.payload.userId,
+          userName: action.payload.userName,
+          timestamp: action.payload.timestamp
+        });
+      }
+      return { ...state, activeEditors: newActiveEditors };
+    case 'REMOVE_ACTIVE_EDITOR':
+      const updatedActiveEditors = new Map(state.activeEditors);
+      if (action.payload.weekKey) {
+        updatedActiveEditors.delete(action.payload.weekKey);
+      }
+      return { ...state, activeEditors: updatedActiveEditors };
     case 'UPDATE_STAFF_SHIFT_COUNT':
       return {
         ...state,
@@ -405,6 +425,9 @@ export function DataProvider({ children }) {
     getTimeOffByStaffId: (staffId) => indexes.timeOffByStaff[staffId] || [],
     getScheduleByWeek: (weekKey) => indexes.schedulesByWeek[weekKey],
     hasData: state.staff.length > 0 || state.roles.length > 0 || state.shifts.length > 0 || state.tours.length > 0,
+    // Active editor functions
+    getActiveEditor: (weekKey) => state.activeEditors.get(weekKey),
+    isWeekBeingEdited: (weekKey) => state.activeEditors.has(weekKey),
     // Supabase functions
     supabase,
     loadData,

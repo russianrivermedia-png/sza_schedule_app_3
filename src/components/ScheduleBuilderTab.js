@@ -41,8 +41,11 @@ import {
   AddCircle as AddCircleIcon,
   CheckBox as CheckBoxIcon,
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
+  Refresh as RefreshIcon,
+  Merge as MergeIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { scheduleHelpers, roleAssignmentsHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import DroppableRole from './DroppableRole';
@@ -64,8 +67,12 @@ function ScheduleBuilderTab() {
     // Use optimized lookup functions
     getStaffById,
     getRoleById,
-    getTimeOffByStaffId
+    getTimeOffByStaffId,
+    getActiveEditor,
+    isWeekBeingEdited
   } = useData();
+  
+  const { user: currentUser } = useAuth();
   
   const [selectedWeek, setSelectedWeek] = useState(currentWeek);
   const [weekSchedule, setWeekSchedule] = useState({});
@@ -95,6 +102,17 @@ function ScheduleBuilderTab() {
   
   // Cache for time off conflicts by week
   const [timeOffConflictsCache, setTimeOffConflictsCache] = useState(new Map());
+  
+  // Multi-device collaboration state
+  const [scheduleVersion, setScheduleVersion] = useState(null);
+  const [isScheduleLocked, setIsScheduleLocked] = useState(false);
+  const [lockedBy, setLockedBy] = useState(null);
+  const [lastModifiedBy, setLastModifiedBy] = useState(null);
+  
+  // Conflict resolution state
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [conflictData, setConflictData] = useState(null);
+  const [pendingChanges, setPendingChanges] = useState(null);
 
   // Get week dates
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 0 });
@@ -104,6 +122,34 @@ function ScheduleBuilderTab() {
     loadWeekSchedule();
     loadTimeOffConflicts();
   }, [selectedWeek, schedules, isSaving]);
+
+  // Track active editor when week changes
+  useEffect(() => {
+    const weekKey = format(weekStart, 'yyyy-MM-dd');
+    
+    // Set current user as active editor
+    if (currentUser) {
+      dispatch({
+        type: 'SET_ACTIVE_EDITOR',
+        payload: {
+          weekKey,
+          userId: currentUser.id,
+          userName: currentUser.email || 'Unknown User',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    // Cleanup: Remove active editor when component unmounts or week changes
+    return () => {
+      if (currentUser) {
+        dispatch({
+          type: 'REMOVE_ACTIVE_EDITOR',
+          payload: { weekKey }
+        });
+      }
+    };
+  }, [selectedWeek, currentUser, dispatch]);
 
   // Load time off conflicts for the current week
   const loadTimeOffConflicts = async () => {
@@ -146,6 +192,12 @@ function ScheduleBuilderTab() {
     // console.log('Loading week schedule for:', weekKey);
     
     if (existingSchedule) {
+      // Track version and locking info
+      setScheduleVersion(existingSchedule.version || 1);
+      setIsScheduleLocked(existingSchedule.is_locked || false);
+      setLockedBy(existingSchedule.locked_by);
+      setLastModifiedBy(existingSchedule.last_modified_by);
+      
       // Extract the actual schedule data, excluding the metadata
       const { week_start, week_key, ...scheduleData } = existingSchedule.days || {};
       
@@ -185,6 +237,12 @@ function ScheduleBuilderTab() {
       
       setWeekSchedule(completeWeekData);
     } else {
+      // Reset version info for new schedule
+      setScheduleVersion(null);
+      setIsScheduleLocked(false);
+      setLockedBy(null);
+      setLastModifiedBy(null);
+      
       // Create empty week structure with all 7 days
       const emptyWeekData = {};
       weekDates.forEach(date => {
@@ -214,20 +272,112 @@ function ScheduleBuilderTab() {
     try {
       const existingSchedule = schedules.find(s => s.weekKey === weekKey);
       if (existingSchedule) {
-        // Update existing schedule
-        await scheduleHelpers.update(existingSchedule.id, scheduleData);
-    } else {
+        // Update existing schedule with version control
+        const updatedSchedule = await scheduleHelpers.update(
+          existingSchedule.id, 
+          scheduleData, 
+          scheduleVersion, 
+          currentUser?.id
+        );
+        
+        // Update local version
+        setScheduleVersion(updatedSchedule.version);
+        setLastModifiedBy(updatedSchedule.last_modified_by);
+      } else {
         // Create new schedule
-        await scheduleHelpers.add(scheduleData);
+        const newSchedule = await scheduleHelpers.add({
+          ...scheduleData,
+          last_modified_by: currentUser?.id
+        });
+        
+        // Update local version
+        setScheduleVersion(newSchedule.version);
+        setLastModifiedBy(newSchedule.last_modified_by);
       }
     } catch (error) {
       console.error('Error saving schedule:', error);
-      alert(`Error saving schedule: ${error.message}. Please try again.`);
+      
+      // Handle specific error types
+      if (error.message.includes('modified by another user')) {
+        // Show conflict resolution dialog
+        setConflictData({
+          type: 'version_conflict',
+          message: 'This schedule has been modified by another user.',
+          details: 'Your changes conflict with changes made by another user. How would you like to resolve this?'
+        });
+        setPendingChanges(scheduleData);
+        setConflictDialogOpen(true);
+      } else if (error.message.includes('currently being edited')) {
+        alert('This schedule is currently being edited by another user. Please try again in a few moments.');
+      } else {
+        alert(`Error saving schedule: ${error.message}. Please try again.`);
+      }
     } finally {
       setIsSaving(false);
       
-      // Refresh the page to ensure fresh data and avoid real-time update conflicts
-      window.location.reload();
+      // Reload data from context instead of page reload to maintain real-time sync
+      dispatch({ type: 'RELOAD_SCHEDULES' });
+    }
+  };
+
+  // Conflict resolution functions
+  const handleConflictResolution = (resolution) => {
+    if (resolution === 'overwrite') {
+      // Force save with current changes
+      saveWeekSchedule();
+    } else if (resolution === 'reload') {
+      // Reload latest data and discard local changes
+      loadWeekSchedule();
+    } else if (resolution === 'merge') {
+      // Attempt to merge changes (basic implementation)
+      attemptMergeChanges();
+    }
+    setConflictDialogOpen(false);
+    setConflictData(null);
+    setPendingChanges(null);
+  };
+
+  const attemptMergeChanges = async () => {
+    try {
+      // Get the latest schedule data
+      const weekKey = format(weekStart, 'yyyy-MM-dd');
+      const latestSchedule = await scheduleHelpers.getByWeek(weekKey);
+      
+      if (latestSchedule && latestSchedule.days) {
+        // Merge local changes with latest data
+        const mergedSchedule = { ...latestSchedule.days };
+        
+        // Apply local changes to the merged schedule
+        Object.keys(weekSchedule).forEach(dayKey => {
+          if (weekSchedule[dayKey] && weekSchedule[dayKey].shifts) {
+            mergedSchedule[dayKey] = weekSchedule[dayKey];
+          }
+        });
+        
+        // Update the local schedule with merged data
+        setWeekSchedule(mergedSchedule);
+        
+        // Save the merged schedule
+        const scheduleData = {
+          days: {
+            ...mergedSchedule,
+            week_start: weekStart.toISOString(),
+            week_key: weekKey
+          }
+        };
+        
+        await scheduleHelpers.update(
+          latestSchedule.id, 
+          scheduleData, 
+          latestSchedule.version, 
+          currentUser?.id
+        );
+        
+        alert('Changes merged successfully!');
+      }
+    } catch (error) {
+      console.error('Error merging changes:', error);
+      alert('Failed to merge changes. Please try again.');
     }
   };
 
@@ -294,55 +444,94 @@ function ScheduleBuilderTab() {
       conflicts.push('Not available on this day');
     }
 
-    // Check time off conflicts
-    const timeOffConflicts = getTimeOffByStaffId(staffId);
-    const hasTimeOff = timeOffConflicts.some(t => {
-      const startDate = new Date(t.start_date);
-      const endDate = new Date(t.end_date);
-      const dayDate = new Date(day);
-      return dayDate >= startDate && dayDate <= endDate && t.status === 'approved';
-    });
-
-    if (hasTimeOff) {
-      conflicts.push('Has approved time off on this day');
+    // Check time off conflicts - use fresh data from database
+    try {
+      const timeOffConflicts = await timeOffHelpers.getConflictsForStaffAndDate(staffId, day);
+      if (timeOffConflicts && timeOffConflicts.length > 0) {
+        conflicts.push('Has approved time off on this day');
+      }
+    } catch (error) {
+      console.error('Error checking time off conflicts:', error);
+      // Fallback to cached data if database call fails
+      const cachedTimeOffConflicts = getTimeOffByStaffId(staffId);
+      const hasTimeOff = cachedTimeOffConflicts.some(t => {
+        const startDate = new Date(t.start_date);
+        const endDate = new Date(t.end_date);
+        const dayDate = new Date(day);
+        return dayDate >= startDate && dayDate <= endDate && t.status === 'approved';
+      });
+      if (hasTimeOff) {
+        conflicts.push('Has approved time off on this day');
+      }
     }
 
-    // Check for double-booking on the same day
+    // Check for double-booking on the same day - use fresh schedule data
     const dayKey = format(day, 'yyyy-MM-dd');
-    const daySchedule = weekSchedule[dayKey];
-    if (daySchedule && daySchedule.shifts) {
-      // Check if staff is assigned to a DIFFERENT role on this day
-      let isAssignedToDifferentRole = false;
-      let assignedRoles = [];
-      
-      daySchedule.shifts.forEach(shift => {
-        Object.entries(shift.assignedStaff).forEach(([assignedRoleId, assignedStaffId]) => {
-          // If this staff member is assigned to a different role on this day
-          if (assignedStaffId === staffId) {
-            assignedRoles.push(assignedRoleId);
-            if (assignedRoleId !== roleId) {
-              isAssignedToDifferentRole = true;
-            }
+    const weekKey = format(weekStart, 'yyyy-MM-dd');
+    
+    try {
+      // Get fresh schedule data from database
+      const freshSchedule = await scheduleHelpers.getByWeek(weekKey);
+      if (freshSchedule && freshSchedule.days && freshSchedule.days[dayKey]) {
+        const daySchedule = freshSchedule.days[dayKey];
+        if (daySchedule && daySchedule.shifts) {
+          // Check if staff is assigned to a DIFFERENT role on this day
+          let isAssignedToDifferentRole = false;
+          let assignedRoles = [];
+          
+          daySchedule.shifts.forEach(shift => {
+            Object.entries(shift.assignedStaff).forEach(([assignedRoleId, assignedStaffId]) => {
+              // If this staff member is assigned to a different role on this day
+              if (assignedStaffId === staffId) {
+                assignedRoles.push(assignedRoleId);
+                if (assignedRoleId !== roleId) {
+                  isAssignedToDifferentRole = true;
+                }
+              }
+            });
+          });
+          
+          // Debug logging
+          if (assignedRoles.length > 0) {
+            console.log(`🔍 Fresh double-booking check for ${staffMember.name} on ${dayKey}:`, {
+              staffId,
+              roleId,
+              assignedRoles,
+              isAssignedToDifferentRole,
+              daySchedule: daySchedule.shifts.map(s => ({
+                shiftId: s.id,
+                assignedStaff: s.assignedStaff
+              }))
+            });
           }
-        });
-      });
-      
-      // Debug logging
-      if (assignedRoles.length > 0) {
-        console.log(`🔍 Double-booking check for ${staffMember.name} on ${dayKey}:`, {
-          staffId,
-          roleId,
-          assignedRoles,
-          isAssignedToDifferentRole,
-          daySchedule: daySchedule.shifts.map(s => ({
-            shiftId: s.id,
-            assignedStaff: s.assignedStaff
-          }))
-        });
+          
+          if (isAssignedToDifferentRole) {
+            conflicts.push('Already assigned to another role on this day');
+          }
+        }
       }
-      
-      if (isAssignedToDifferentRole) {
-        conflicts.push('Already assigned to another role on this day');
+    } catch (error) {
+      console.error('Error checking fresh schedule data:', error);
+      // Fallback to local state if database call fails
+      const daySchedule = weekSchedule[dayKey];
+      if (daySchedule && daySchedule.shifts) {
+        let isAssignedToDifferentRole = false;
+        let assignedRoles = [];
+        
+        daySchedule.shifts.forEach(shift => {
+          Object.entries(shift.assignedStaff).forEach(([assignedRoleId, assignedStaffId]) => {
+            if (assignedStaffId === staffId) {
+              assignedRoles.push(assignedRoleId);
+              if (assignedRoleId !== roleId) {
+                isAssignedToDifferentRole = true;
+              }
+            }
+          });
+        });
+        
+        if (isAssignedToDifferentRole) {
+          conflicts.push('Already assigned to another role on this day');
+        }
       }
     }
 
@@ -1535,7 +1724,46 @@ function ScheduleBuilderTab() {
     <DndProvider backend={HTML5Backend}>
       <Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">Schedule Builder</Typography>
+          <Box>
+            <Typography variant="h4">Schedule Builder</Typography>
+            {/* Multi-device collaboration indicators */}
+            {isScheduleLocked && lockedBy && lockedBy !== currentUser?.id && (
+              <Alert severity="warning" sx={{ mt: 1, mb: 1 }}>
+                ⚠️ This schedule is currently being edited by another user. Your changes may not be saved.
+              </Alert>
+            )}
+            {lastModifiedBy && lastModifiedBy !== currentUser?.id && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                Last modified by another user • Version {scheduleVersion}
+              </Typography>
+            )}
+            {scheduleVersion && lastModifiedBy === currentUser?.id && (
+              <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
+                ✓ You have the latest version • Version {scheduleVersion}
+              </Typography>
+            )}
+            {/* Active editor indicator */}
+            {(() => {
+              const weekKey = format(weekStart, 'yyyy-MM-dd');
+              const activeEditor = getActiveEditor(weekKey);
+              const isBeingEdited = isWeekBeingEdited(weekKey);
+              
+              if (isBeingEdited && activeEditor && activeEditor.userId !== currentUser?.id) {
+                return (
+                  <Typography variant="caption" color="info.main" sx={{ display: 'block', mt: 0.5 }}>
+                    👤 {activeEditor.userName} is currently editing this schedule
+                  </Typography>
+                );
+              } else if (isBeingEdited && activeEditor && activeEditor.userId === currentUser?.id) {
+                return (
+                  <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
+                    ✓ You are currently editing this schedule
+                  </Typography>
+                );
+              }
+              return null;
+            })()}
+          </Box>
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               variant="outlined"
@@ -1559,6 +1787,7 @@ function ScheduleBuilderTab() {
               variant="contained"
               startIcon={<AutoAssignIcon />}
               onClick={autoAssignStaff}
+              disabled={isScheduleLocked && lockedBy !== currentUser?.id}
             >
               Auto Assign
             </Button>
@@ -1566,13 +1795,14 @@ function ScheduleBuilderTab() {
               variant="outlined"
               color="error"
               onClick={clearWeek}
-              disabled={loading || isClearing}
+              disabled={loading || isClearing || (isScheduleLocked && lockedBy !== currentUser?.id)}
             >
               {isClearing ? 'Clearing...' : 'Clear Week'}
             </Button>
             <Button
               variant="contained"
               onClick={saveWeekSchedule}
+              disabled={isScheduleLocked && lockedBy !== currentUser?.id}
             >
               Save Schedule
             </Button>
@@ -1906,6 +2136,52 @@ function ScheduleBuilderTab() {
               Add Role
             </MenuItem>
          </Menu>
+
+        {/* Conflict Resolution Dialog */}
+        <Dialog open={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Schedule Conflict Detected</DialogTitle>
+          <DialogContent>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {conflictData?.message}
+            </Alert>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {conflictData?.details}
+            </Typography>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              Choose how to resolve this conflict:
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Button
+                variant="outlined"
+                onClick={() => handleConflictResolution('reload')}
+                startIcon={<RefreshIcon />}
+              >
+                Reload Latest Data (Discard My Changes)
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => handleConflictResolution('overwrite')}
+                startIcon={<SaveIcon />}
+                color="warning"
+              >
+                Overwrite with My Changes
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => handleConflictResolution('merge')}
+                startIcon={<MergeIcon />}
+                color="primary"
+              >
+                Attempt to Merge Changes
+              </Button>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setConflictDialogOpen(false)}>
+              Cancel
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </DndProvider>
   );
