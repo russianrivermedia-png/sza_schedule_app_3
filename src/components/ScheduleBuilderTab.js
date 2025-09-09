@@ -466,73 +466,29 @@ function ScheduleBuilderTab() {
       }
     }
 
-    // Check for double-booking on the same day - use fresh schedule data
+    // Check for double-booking on the same day - use cached schedule data
     const dayKey = format(day, 'yyyy-MM-dd');
-    const weekKey = format(weekStart, 'yyyy-MM-dd');
     
-    try {
-      // Get fresh schedule data from database
-      const freshSchedule = await scheduleHelpers.getByWeek(weekKey);
-      if (freshSchedule && freshSchedule.days && freshSchedule.days[dayKey]) {
-        const daySchedule = freshSchedule.days[dayKey];
-        if (daySchedule && daySchedule.shifts) {
-          // Check if staff is assigned to a DIFFERENT role on this day
-          let isAssignedToDifferentRole = false;
-          let assignedRoles = [];
-          
-          daySchedule.shifts.forEach(shift => {
-            Object.entries(shift.assignedStaff).forEach(([assignedRoleId, assignedStaffId]) => {
-              // If this staff member is assigned to a different role on this day
-              if (assignedStaffId === staffId) {
-                assignedRoles.push(assignedRoleId);
-                if (assignedRoleId !== roleId) {
-                  isAssignedToDifferentRole = true;
-                }
-              }
-            });
-          });
-          
-          // Debug logging
-          if (assignedRoles.length > 0) {
-            console.log(`🔍 Fresh double-booking check for ${staffMember.name} on ${dayKey}:`, {
-              staffId,
-              roleId,
-              assignedRoles,
-              isAssignedToDifferentRole,
-              daySchedule: daySchedule.shifts.map(s => ({
-                shiftId: s.id,
-                assignedStaff: s.assignedStaff
-              }))
-            });
-          }
-          
-          if (isAssignedToDifferentRole) {
-            conflicts.push('Already assigned to another role on this day');
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error checking fresh schedule data:', error);
-      // Fallback to local state if database call fails
-      const daySchedule = weekSchedule[dayKey];
-      if (daySchedule && daySchedule.shifts) {
-        let isAssignedToDifferentRole = false;
-        let assignedRoles = [];
-        
-        daySchedule.shifts.forEach(shift => {
-          Object.entries(shift.assignedStaff).forEach(([assignedRoleId, assignedStaffId]) => {
-            if (assignedStaffId === staffId) {
-              assignedRoles.push(assignedRoleId);
-              if (assignedRoleId !== roleId) {
-                isAssignedToDifferentRole = true;
-              }
+    // Use local weekSchedule data instead of making database calls
+    const daySchedule = weekSchedule[dayKey];
+    if (daySchedule && daySchedule.shifts) {
+      let isAssignedToDifferentRole = false;
+      let assignedRoles = [];
+      
+      daySchedule.shifts.forEach(shift => {
+        Object.entries(shift.assignedStaff).forEach(([assignedRoleId, assignedStaffId]) => {
+          // If this staff member is assigned to a different role on this day
+          if (assignedStaffId === staffId) {
+            assignedRoles.push(assignedRoleId);
+            if (assignedRoleId !== roleId) {
+              isAssignedToDifferentRole = true;
             }
-          });
+          }
         });
-        
-        if (isAssignedToDifferentRole) {
-          conflicts.push('Already assigned to another role on this day');
-        }
+      });
+      
+      if (isAssignedToDifferentRole) {
+        conflicts.push('Already assigned to another role on this day');
       }
     }
 

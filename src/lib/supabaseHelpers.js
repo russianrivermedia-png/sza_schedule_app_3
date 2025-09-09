@@ -287,8 +287,8 @@ export const scheduleHelpers = {
   async getByWeek(weekKey) {
     const { data, error } = await supabase
       .from('schedules')
-      .select('id, days, created_at')
-      .contains('days', { week_key: weekKey })
+      .select('id, days, created_at, version, last_modified_by, last_modified_at, is_locked, locked_by, locked_at')
+      .eq('days->>week_key', weekKey)
       .single();
     
     if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows returned
@@ -467,25 +467,6 @@ export const roleAssignmentsHelpers = {
     const endOfWeek = new Date(weekEnd);
     endOfWeek.setHours(23, 59, 59, 999);
     
-    console.log('🔍 Database query dates:', {
-      startOfWeek: startOfWeek.toISOString(),
-      endOfWeek: endOfWeek.toISOString()
-    });
-    
-    // First, let's see what's actually in the database
-    const { data: sampleData, error: sampleError } = await supabase
-      .from('role_assignments')
-      .select('staff_id, role, assignment_date, created_at')
-      .limit(5);
-    
-    if (sampleError) throw sampleError;
-    console.log('🔍 Sample role_assignments data:', sampleData);
-    console.log('🔍 Sample assignment dates:', sampleData?.map(d => ({
-      assignment_date: d.assignment_date,
-      created_at: d.created_at,
-      isCurrentWeek: d.assignment_date >= startOfWeek.toISOString() && d.assignment_date <= endOfWeek.toISOString()
-    })));
-    
     const { data, error } = await supabase
       .from('role_assignments')
       .select('staff_id, role, assignment_date')
@@ -493,7 +474,6 @@ export const roleAssignmentsHelpers = {
       .lte('assignment_date', endOfWeek.toISOString());
 
     if (error) throw error;
-    console.log('🔍 Filtered assignments count:', data?.length || 0);
     return data || [];
   },
 
