@@ -38,7 +38,7 @@ import { format, startOfWeek, addDays } from 'date-fns';
 
 function StaffDashboard() {
   const { user, getStaffMember } = useAuth();
-  const { timeOffRequests, roles, schedules, staff } = useData();
+  const { timeOffRequests, roles, schedules, staff, shifts } = useData();
   const [staffMember, setStaffMember] = useState(null);
   const [timeOffDialogOpen, setTimeOffDialogOpen] = useState(false);
   const [timeOffForm, setTimeOffForm] = useState({
