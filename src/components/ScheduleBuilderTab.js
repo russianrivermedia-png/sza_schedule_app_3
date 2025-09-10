@@ -553,8 +553,22 @@ function ScheduleBuilderTab() {
        const shift = (shifts || []).find(s => s.id === shiftId);
        if (!shift) return null;
        
+       // Check if this is a team event
+       const isTeamEvent = shift.is_team_event || shift.isTeamEvent;
        
-              return {
+       // For team events, assign all staff to the first role
+       let assignedStaff = {};
+       if (isTeamEvent && staff && staff.length > 0) {
+         const firstRoleId = (shift.required_roles || shift.requiredRoles || [])[0];
+         if (firstRoleId) {
+           // Assign all staff to the first role
+           staff.forEach(staffMember => {
+             assignedStaff[firstRoleId] = staffMember.id;
+           });
+         }
+       }
+       
+       return {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           shiftId,
           name: shift.name,
@@ -562,9 +576,10 @@ function ScheduleBuilderTab() {
           tours: shift.tours || [],
           tourColors: {},
           staffColors: {},
-          assignedStaff: {},
+          assignedStaff,
           arrivalTime: shift.default_starting_time || '',
           notes: '',
+          isTeamEvent,
         };
      }).filter(Boolean);
 
@@ -1491,9 +1506,20 @@ function ScheduleBuilderTab() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontWeight="bold">
-                        {shift.name}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" fontWeight="bold">
+                          {shift.name}
+                        </Typography>
+                        {shift.isTeamEvent && (
+                          <Chip
+                            label="Team Event"
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ fontSize: '0.6rem', height: 20 }}
+                          />
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>

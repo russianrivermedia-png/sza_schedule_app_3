@@ -54,6 +54,7 @@ function ShiftCreationTab() {
     requiredRoles: [],
     tours: [],
     defaultStartingTime: '',
+    isTeamEvent: false,
   });
   
   // Bulk creation state
@@ -66,6 +67,7 @@ function ShiftCreationTab() {
     requiredRoles: [],
     tours: [],
     defaultStartingTime: '',
+    isTeamEvent: false,
   });
   
   const [bulkShifts, setBulkShifts] = useState([]);
@@ -79,6 +81,7 @@ function ShiftCreationTab() {
         requiredRoles: shift.required_roles || shift.requiredRoles || [],
         tours: shift.tours || [],
         defaultStartingTime: shift.default_starting_time || shift.defaultStartingTime || '',
+        isTeamEvent: shift.is_team_event || shift.isTeamEvent || false,
       });
     } else {
       setEditingShift(null);
@@ -88,6 +91,7 @@ function ShiftCreationTab() {
         requiredRoles: [],
         tours: [],
         defaultStartingTime: '',
+        isTeamEvent: false,
       });
     }
     setOpenDialog(true);
@@ -102,6 +106,7 @@ function ShiftCreationTab() {
       requiredRoles: [],
       tours: [],
       defaultStartingTime: '',
+      isTeamEvent: false,
     });
   };
 
@@ -115,6 +120,7 @@ function ShiftCreationTab() {
         required_roles: formData.requiredRoles,
       tours: formData.tours,
       default_starting_time: formData.defaultStartingTime || null,
+      is_team_event: formData.isTeamEvent,
     };
 
     if (editingShift) {
@@ -171,6 +177,7 @@ function ShiftCreationTab() {
         requiredRoles: [...bulkData.requiredRoles],
         tours: [...bulkData.tours],
         defaultStartingTime: bulkData.defaultStartingTime,
+        isTeamEvent: bulkData.isTeamEvent,
       });
     }
     setBulkShifts(shifts);
@@ -194,6 +201,7 @@ function ShiftCreationTab() {
           required_roles: shift.requiredRoles,
           tours: shift.tours,
           default_starting_time: shift.defaultStartingTime || null,
+          is_team_event: shift.isTeamEvent || false,
         };
         const newShift = await shiftHelpers.add(shiftData);
         dispatch({ type: 'ADD_SHIFT', payload: newShift });
@@ -242,6 +250,7 @@ function ShiftCreationTab() {
       requiredRoles: [...(shift.required_roles || shift.requiredRoles || [])],
       tours: [...shift.tours],
       defaultStartingTime: shift.default_starting_time || shift.defaultStartingTime || '',
+      isTeamEvent: shift.is_team_event || shift.isTeamEvent || false,
     });
     setBulkMode(false);
     setEditingShift(null);
@@ -287,9 +296,20 @@ function ShiftCreationTab() {
             <Card>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Typography variant="h6" component="div">
-                    {shift.name}
-                  </Typography>
+                  <Box>
+                    <Typography variant="h6" component="div">
+                      {shift.name}
+                    </Typography>
+                    {(shift.is_team_event || shift.isTeamEvent) && (
+                      <Chip
+                        label="Team Event"
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                        sx={{ mt: 0.5 }}
+                      />
+                    )}
+                  </Box>
                   <Box>
                     <IconButton
                       size="small"
@@ -439,6 +459,22 @@ function ShiftCreationTab() {
               InputLabelProps={{ shrink: true }}
               helperText="This time will be pre-filled in the arrival time slot when this shift is used"
             />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.isTeamEvent}
+                  onChange={(e) => setFormData({ ...formData, isTeamEvent: e.target.checked })}
+                  color="primary"
+                />
+              }
+              label="Team Event (Assigns all staff members)"
+              sx={{ mt: 2 }}
+            />
+            {formData.isTeamEvent && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                This shift will automatically assign all staff members when added to a schedule.
+              </Alert>
+            )}
             <FormControl fullWidth margin="normal" required>
               <InputLabel>Required Roles *</InputLabel>
               <Select
@@ -572,6 +608,24 @@ function ShiftCreationTab() {
                     InputLabelProps={{ shrink: true }}
                     helperText="This time will be pre-filled in the arrival time slot when these shifts are used"
                   />
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={bulkData.isTeamEvent || false}
+                        onChange={(e) => setBulkData({ ...bulkData, isTeamEvent: e.target.checked })}
+                        color="primary"
+                      />
+                    }
+                    label="Team Event (Assigns all staff members)"
+                    sx={{ mt: 2 }}
+                  />
+                  {(bulkData.isTeamEvent || false) && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      These shifts will automatically assign all staff members when added to a schedule.
+                    </Alert>
+                  )}
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <FormControl fullWidth margin="normal" required>
