@@ -38,12 +38,13 @@ import { format, startOfWeek, addDays } from 'date-fns';
 
 function StaffDashboard() {
   const { user, getStaffMember } = useAuth();
-  const { timeOffRequests, roles, schedules } = useData();
+  const { timeOffRequests, roles, schedules, staff } = useData();
   const [staffMember, setStaffMember] = useState(null);
   const [timeOffDialogOpen, setTimeOffDialogOpen] = useState(false);
   const [timeOffForm, setTimeOffForm] = useState({
     startDate: '',
-    endDate: ''
+    endDate: '',
+    reason: ''
   });
   const [editInfoDialogOpen, setEditInfoDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -91,13 +92,15 @@ function StaffDashboard() {
         staff_id: staffMember.id,
         start_date: timeOffForm.startDate,
         end_date: timeOffForm.endDate,
+        reason: timeOffForm.reason,
         status: 'pending'
       });
 
       setTimeOffDialogOpen(false);
       setTimeOffForm({
         startDate: '',
-        endDate: ''
+        endDate: '',
+        reason: ''
       });
       
       // Refresh data
@@ -153,6 +156,47 @@ function StaffDashboard() {
 
   const getStaffTimeOff = () => {
     return timeOffRequests.filter(t => t.staff_id === staffMember.id);
+  };
+
+  // Helper function to check if request is within next 2 weeks
+  const isWithinNextTwoWeeks = (startDate) => {
+    if (!startDate) return false;
+    const today = new Date();
+    const twoWeeksFromNow = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
+    const requestDate = new Date(startDate);
+    return requestDate <= twoWeeksFromNow && requestDate >= today;
+  };
+
+  // Helper function to check if request is longer than 7 days
+  const isLongerThanSevenDays = (startDate, endDate) => {
+    if (!startDate || !endDate) return false;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = end.getTime() - start.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end days
+    return diffDays > 7;
+  };
+
+  // Helper function to check for overlapping time off requests
+  const getOverlappingRequests = (startDate, endDate, excludeRequestId = null) => {
+    if (!startDate || !endDate) return [];
+    
+    const requestStart = new Date(startDate);
+    const requestEnd = new Date(endDate);
+    
+    return timeOffRequests.filter(request => {
+      // Skip the current request if we're editing
+      if (excludeRequestId && request.id === excludeRequestId) return false;
+      
+      // Only check approved and pending requests
+      if (!['approved', 'pending'].includes(request.status)) return false;
+      
+      const existingStart = new Date(request.start_date);
+      const existingEnd = new Date(request.end_date);
+      
+      // Check if dates overlap
+      return requestStart <= existingEnd && requestEnd >= existingStart;
+    });
   };
 
   const getNext7DaysShifts = () => {
@@ -423,7 +467,36 @@ function StaffDashboard() {
                     <ListItem key={request.id}>
                       <ListItemText
                         primary={`${format(new Date(request.start_date), 'MMM dd')} - ${format(new Date(request.end_date), 'MMM dd, yyyy')}`}
-                        secondary={`Time off request`}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2" color="text.secondary">
+                              Time off request
+                            </Typography>
+                            {request.reason && (
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                                "{request.reason}"
+                              </Typography>
+                            )}
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                              {isWithinNextTwoWeeks(request.start_date) && (
+                                <Chip
+                                  label="Short Notice"
+                                  color="warning"
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              )}
+                              {isLongerThanSevenDays(request.start_date, request.end_date) && (
+                                <Chip
+                                  label="Long Request"
+                                  color="info"
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                          </Box>
+                        }
                       />
                       <ListItemSecondaryAction>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -464,6 +537,19 @@ function StaffDashboard() {
         <DialogTitle>Request Time Off</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 1 }}>
+            {/* Guidance Messages */}
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 1 }}>
+                Time Off Request Guidelines:
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                • Please request time off at least two weeks in advance
+              </Typography>
+              <Typography variant="body2">
+                • Please communicate with a manager about large time off requests (More than seven days)
+              </Typography>
+            </Alert>
+
             <TextField
               fullWidth
               label="Start Date"
@@ -484,6 +570,55 @@ function StaffDashboard() {
               InputLabelProps={{ shrink: true }}
               required
             />
+
+            {/* Two-week warning - appears above reason field */}
+            {timeOffForm.startDate && isWithinNextTwoWeeks(timeOffForm.startDate) && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  This request is in the next 2 weeks, there is a lower chance of getting approval
+                </Typography>
+              </Alert>
+            )}
+
+            <TextField
+              fullWidth
+              label="Reason (Optional)"
+              value={timeOffForm.reason}
+              onChange={(e) => setTimeOffForm({ ...timeOffForm, reason: e.target.value })}
+              margin="normal"
+              multiline
+              rows={3}
+              placeholder="Please provide a reason for your time off request..."
+            />
+
+            {/* Other Dynamic Warnings */}
+
+            {timeOffForm.startDate && timeOffForm.endDate && isLongerThanSevenDays(timeOffForm.startDate, timeOffForm.endDate) && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                <Typography variant="body2">
+                  This is a large time off request (more than 7 days). Please communicate with a manager.
+                </Typography>
+              </Alert>
+            )}
+
+            {timeOffForm.startDate && timeOffForm.endDate && (() => {
+              const overlappingRequests = getOverlappingRequests(timeOffForm.startDate, timeOffForm.endDate);
+              if (overlappingRequests.length >= 2) {
+                const overlappingNames = overlappingRequests.map(req => {
+                  const staffMember = staff.find(s => s.id === req.staff_id);
+                  return staffMember ? staffMember.name : 'Unknown';
+                }).join(', ');
+                
+                return (
+                  <Alert severity="error" sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                      CONFLICT: {overlappingRequests.length} other employee(s) have requested time off during this period: {overlappingNames}
+                    </Typography>
+                  </Alert>
+                );
+              }
+              return null;
+            })()}
           </Box>
         </DialogContent>
         <DialogActions>
