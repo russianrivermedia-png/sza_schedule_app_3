@@ -33,7 +33,7 @@ import {
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { timeOffHelpers, roleAssignmentsHelpers, staffHelpers } from '../lib/supabaseHelpers';
+import { timeOffHelpers, staffHelpers } from '../lib/supabaseHelpers';
 import { format, startOfWeek, addDays } from 'date-fns';
 
 function StaffDashboard() {
@@ -51,8 +51,6 @@ function StaffDashboard() {
     email: '',
     phone: ''
   });
-  const [roleAssignments, setRoleAssignments] = useState([]);
-  const [roleSummary, setRoleSummary] = useState({});
 
   useEffect(() => {
     const loadStaffData = async () => {
@@ -60,33 +58,13 @@ function StaffDashboard() {
         const staff = await getStaffMember();
         setStaffMember(staff);
         if (staff) {
-          loadRoleAssignments();
-          loadRoleSummary();
+          // Staff data loaded
         }
       }
     };
     loadStaffData();
   }, [user]);
 
-  const loadRoleAssignments = async () => {
-    if (!staffMember?.id) return;
-    try {
-      const assignments = await roleAssignmentsHelpers.getByStaff(staffMember.id);
-      setRoleAssignments(assignments);
-    } catch (error) {
-      console.error('Error loading role assignments:', error);
-    }
-  };
-
-  const loadRoleSummary = async () => {
-    if (!staffMember?.id) return;
-    try {
-      const summary = await roleAssignmentsHelpers.getSummaryByStaff(staffMember.id);
-      setRoleSummary(summary);
-    } catch (error) {
-      console.error('Error loading role summary:', error);
-    }
-  };
 
   const handleTimeOffSubmit = async () => {
     try {
@@ -399,83 +377,8 @@ function StaffDashboard() {
           </Card>
         </Grid>
 
-        {/* Role Summary Card */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                <ScheduleIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Role Assignment Summary
-              </Typography>
-              
-              {Object.keys(roleSummary).length > 0 ? (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {Object.entries(roleSummary).map(([role, count]) => (
-                    <Chip
-                      key={role}
-                      label={`${role}: ${count} times`}
-                      color="primary"
-                      size="small"
-                    />
-                  ))}
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No role assignments yet
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Next 7 Days Shifts */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                <EventIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Upcoming Shifts (Next 7 Days)
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Your scheduled shifts for the next 7 days
-              </Typography>
-              
-              {next7DaysShifts.length > 0 ? (
-                <Grid container spacing={2}>
-                  {next7DaysShifts.map((dayInfo, index) => (
-                    <Grid item xs={12} sm={6} md={4} key={index}>
-                      <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                        <Typography variant="subtitle2" gutterBottom>
-                          {dayInfo.dayName}, {format(dayInfo.date, 'MMM dd')}
-                        </Typography>
-                        {dayInfo.shifts.map((shift, shiftIndex) => (
-                          <Box key={shiftIndex} sx={{ mb: 1 }}>
-                            <Typography variant="body2">
-                              <strong>{shift.shiftName}</strong>
-                            </Typography>
-                            <Typography variant="body2" color="primary">
-                              Role: {shift.role}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {shift.start_time} - {shift.end_time}
-                            </Typography>
-                          </Box>
-                        ))}
-                      </Box>
-                    </Grid>
-                  ))}
-                </Grid>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No shifts scheduled for the next 7 days
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
         {/* Time Off Requests */}
-        <Grid item xs={12}>
+        <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -560,6 +463,53 @@ function StaffDashboard() {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* Next 7 Days Shifts */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <EventIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Upcoming Shifts (Next 7 Days)
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Your scheduled shifts for the next 7 days
+              </Typography>
+              
+              {next7DaysShifts.length > 0 ? (
+                <Grid container spacing={2}>
+                  {next7DaysShifts.map((dayInfo, index) => (
+                    <Grid item xs={12} sm={6} md={4} key={index}>
+                      <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                        <Typography variant="subtitle2" gutterBottom>
+                          {dayInfo.dayName}, {format(dayInfo.date, 'MMM dd')}
+                        </Typography>
+                        {dayInfo.shifts.map((shift, shiftIndex) => (
+                          <Box key={shiftIndex} sx={{ mb: 1 }}>
+                            <Typography variant="body2">
+                              <strong>{shift.shiftName}</strong>
+                            </Typography>
+                            <Typography variant="body2" color="primary">
+                              Role: {shift.role}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {shift.start_time} - {shift.end_time}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Grid>
+                  ))}
+                </Grid>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No shifts scheduled for the next 7 days
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
       </Grid>
 
       {/* Time Off Request Dialog */}
