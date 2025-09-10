@@ -217,25 +217,45 @@ function StaffDashboard() {
       });
     }
     
-    
     // Find shifts for each day across all schedules
     schedules.forEach((schedule) => {
       if (schedule.days && typeof schedule.days === 'object') {
-        Object.keys(schedule.days).forEach(day => {
-          if (day !== 'week_key' && Array.isArray(schedule.days[day])) {
-            schedule.days[day].forEach((shift) => {
-              if (shift.assigned_staff && shift.assigned_staff.id === staffMember.id) {
+        Object.keys(schedule.days).forEach(dayKey => {
+          // Skip metadata keys
+          if (dayKey === 'week_key' || dayKey === 'week_start') return;
+          
+          const dayData = schedule.days[dayKey];
+          if (dayData && dayData.shifts && Array.isArray(dayData.shifts)) {
+            dayData.shifts.forEach((shift) => {
+              // Check if this staff member is assigned to any role in this shift
+              const isAssigned = shift.assignedStaff && 
+                Object.values(shift.assignedStaff).some(assignedStaffId => 
+                  assignedStaffId === staffMember.id
+                );
+              
+              if (isAssigned) {
                 // Try to match this shift to one of our next 7 days
                 next7Days.forEach(dayInfo => {
                   // Check if this shift falls on this day
-                  if (shift.date === dayInfo.dateString || 
-                      (shift.start_date && shift.start_date === dayInfo.dateString) ||
-                      (shift.day && shift.day.toLowerCase() === dayInfo.dayName.toLowerCase())) {
+                  if (dayKey === dayInfo.dateString) {
+                    // Get the role name for this staff member
+                    const assignedRoleId = Object.keys(shift.assignedStaff).find(roleId => 
+                      shift.assignedStaff[roleId] === staffMember.id
+                    );
+                    const role = roles.find(r => r.id === assignedRoleId);
+                    const roleName = role ? role.name : 'Unassigned';
+                    
+                    // Get shift template info
+                    const shiftTemplate = shifts.find(s => s.id === shift.shiftId);
+                    const startTime = shiftTemplate ? shiftTemplate.start_time : 'TBD';
+                    const endTime = shiftTemplate ? shiftTemplate.end_time : 'TBD';
+                    
                     dayInfo.shifts.push({
                       ...shift,
-                      role: shift.role || 'Unassigned',
-                      start_time: shift.start_time || 'TBD',
-                      end_time: shift.end_time || 'TBD'
+                      role: roleName,
+                      start_time: startTime,
+                      end_time: endTime,
+                      shiftName: shiftTemplate ? shiftTemplate.name : shift.name || 'Unknown Shift'
                     });
                   }
                 });
@@ -426,7 +446,10 @@ function StaffDashboard() {
                         {dayInfo.shifts.map((shift, shiftIndex) => (
                           <Box key={shiftIndex} sx={{ mb: 1 }}>
                             <Typography variant="body2">
-                              <strong>{shift.role}</strong>
+                              <strong>{shift.shiftName}</strong>
+                            </Typography>
+                            <Typography variant="body2" color="primary">
+                              Role: {shift.role}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
                               {shift.start_time} - {shift.end_time}
