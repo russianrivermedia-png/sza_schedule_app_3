@@ -457,24 +457,6 @@ function StaffTab() {
   };
 
 
-  const calculateTenure = (hireDate) => {
-    if (!hireDate) return null;
-    
-    const hire = new Date(hireDate);
-    const today = new Date();
-    const diffTime = Math.abs(today - hire);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const years = Math.floor(diffDays / 365);
-    const months = Math.floor((diffDays % 365) / 30);
-    
-    if (years > 0) {
-      return `${years} year${years !== 1 ? 's' : ''}${months > 0 ? `, ${months} month${months !== 1 ? 's' : ''}` : ''}`;
-    } else if (months > 0) {
-      return `${months} month${months !== 1 ? 's' : ''}`;
-    } else {
-      return `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
-    }
-  };
 
   const getFilteredAndSortedStaff = () => {
     // First apply filters
@@ -686,14 +668,6 @@ function StaffTab() {
                   {member.phone && (
                     <Typography variant="body2" color="text.secondary" gutterBottom>
                       {member.phone}
-                    </Typography>
-                  )}
-                                     {member.hire_date && (
-                     <Typography variant="body2" color="text.secondary" gutterBottom>
-                       <strong>Hire Date:</strong> {format(new Date(member.hire_date), 'MMM dd, yyyy')}
-                       <Typography component="span" variant="body2" color="primary" sx={{ ml: 1 }}>
-                         ({calculateTenure(member.hire_date)})
-                       </Typography>
                     </Typography>
                   )}
 
