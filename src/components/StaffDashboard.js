@@ -69,6 +69,7 @@ function StaffDashboard() {
   }, [user]);
 
   const loadRoleAssignments = async () => {
+    if (!staffMember?.id) return;
     try {
       const assignments = await roleAssignmentsHelpers.getByStaff(staffMember.id);
       setRoleAssignments(assignments);
@@ -78,6 +79,7 @@ function StaffDashboard() {
   };
 
   const loadRoleSummary = async () => {
+    if (!staffMember?.id) return;
     try {
       const summary = await roleAssignmentsHelpers.getSummaryByStaff(staffMember.id);
       setRoleSummary(summary);

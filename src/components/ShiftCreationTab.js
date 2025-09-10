@@ -52,6 +52,7 @@ function ShiftCreationTab() {
     description: '',
     requiredRoles: [],
     tours: [],
+    defaultStartingTime: '',
   });
   
   // Bulk creation state
@@ -63,6 +64,7 @@ function ShiftCreationTab() {
     description: '',
     requiredRoles: [],
     tours: [],
+    defaultStartingTime: '',
   });
   
   const [bulkShifts, setBulkShifts] = useState([]);
@@ -75,6 +77,7 @@ function ShiftCreationTab() {
         description: shift.description || '',
         requiredRoles: shift.requiredRoles || [],
         tours: shift.tours || [],
+        defaultStartingTime: shift.defaultStartingTime || '',
       });
     } else {
       setEditingShift(null);
@@ -83,6 +86,7 @@ function ShiftCreationTab() {
         description: '',
         requiredRoles: [],
         tours: [],
+        defaultStartingTime: '',
       });
     }
     setOpenDialog(true);
@@ -96,6 +100,7 @@ function ShiftCreationTab() {
       description: '',
       requiredRoles: [],
       tours: [],
+      defaultStartingTime: '',
     });
   };
 
@@ -108,6 +113,7 @@ function ShiftCreationTab() {
         description: formData.description.trim() || null,
         required_roles: formData.requiredRoles,
       tours: formData.tours,
+      defaultStartingTime: formData.defaultStartingTime || null,
     };
 
     if (editingShift) {
@@ -163,6 +169,7 @@ function ShiftCreationTab() {
         description: bulkData.description,
         requiredRoles: [...bulkData.requiredRoles],
         tours: [...bulkData.tours],
+        defaultStartingTime: bulkData.defaultStartingTime,
       });
     }
     setBulkShifts(shifts);
@@ -185,6 +192,7 @@ function ShiftCreationTab() {
           description: shift.description || null,
           required_roles: shift.requiredRoles,
           tours: shift.tours,
+          defaultStartingTime: shift.defaultStartingTime || null,
         };
         const newShift = await shiftHelpers.add(shiftData);
         dispatch({ type: 'ADD_SHIFT', payload: newShift });
@@ -200,6 +208,7 @@ function ShiftCreationTab() {
         description: '',
         requiredRoles: [],
         tours: [],
+        defaultStartingTime: '',
       });
       setBulkMode(false);
       setOpenDialog(false);
@@ -231,6 +240,7 @@ function ShiftCreationTab() {
       description: shift.description || '',
       requiredRoles: [...shift.requiredRoles],
       tours: [...shift.tours],
+      defaultStartingTime: shift.defaultStartingTime || '',
     });
     setBulkMode(false);
     setEditingShift(null);
@@ -308,6 +318,12 @@ function ShiftCreationTab() {
                 {shift.description && (
                   <Typography variant="body2" color="text.secondary" gutterBottom>
                     {shift.description}
+                  </Typography>
+                )}
+
+                {shift.defaultStartingTime && (
+                  <Typography variant="body2" color="info.main" gutterBottom>
+                    <strong>Default Start Time:</strong> {shift.defaultStartingTime}
                   </Typography>
                 )}
 
@@ -429,6 +445,16 @@ function ShiftCreationTab() {
               multiline
               rows={3}
             />
+            <TextField
+              fullWidth
+              label="Default Starting Time (Optional)"
+              type="time"
+              value={formData.defaultStartingTime}
+              onChange={(e) => setFormData({ ...formData, defaultStartingTime: e.target.value })}
+              margin="normal"
+              InputLabelProps={{ shrink: true }}
+              helperText="This time will be pre-filled in the arrival time slot when this shift is used"
+            />
             <FormControl fullWidth margin="normal" required>
               <InputLabel>Required Roles *</InputLabel>
               <Select
@@ -549,6 +575,18 @@ function ShiftCreationTab() {
                     margin="normal"
                     multiline
                     rows={2}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Default Starting Time (Optional)"
+                    type="time"
+                    value={bulkData.defaultStartingTime}
+                    onChange={(e) => setBulkData({ ...bulkData, defaultStartingTime: e.target.value })}
+                    margin="normal"
+                    InputLabelProps={{ shrink: true }}
+                    helperText="This time will be pre-filled in the arrival time slot when these shifts are used"
                   />
                 </Grid>
                 <Grid item xs={12} md={6}>
