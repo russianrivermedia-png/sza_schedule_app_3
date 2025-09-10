@@ -557,7 +557,7 @@ function ScheduleBuilderTab() {
           tourColors: {},
           staffColors: {},
           assignedStaff: {},
-          arrivalTime: shift.defaultStartingTime || '',
+          arrivalTime: shift.default_starting_time || '',
           notes: '',
         };
      }).filter(Boolean);

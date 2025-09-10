@@ -114,7 +114,7 @@ function ShiftCreationTab() {
         description: formData.description.trim() || null,
         required_roles: formData.requiredRoles,
       tours: formData.tours,
-      defaultStartingTime: formData.defaultStartingTime || null,
+      default_starting_time: formData.defaultStartingTime || null,
     };
 
     if (editingShift) {
@@ -193,7 +193,7 @@ function ShiftCreationTab() {
           description: shift.description || null,
           required_roles: shift.requiredRoles,
           tours: shift.tours,
-          defaultStartingTime: shift.defaultStartingTime || null,
+          default_starting_time: shift.defaultStartingTime || null,
         };
         const newShift = await shiftHelpers.add(shiftData);
         dispatch({ type: 'ADD_SHIFT', payload: newShift });
