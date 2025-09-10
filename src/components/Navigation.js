@@ -11,8 +11,22 @@ import {
   MenuItem,
   Button,
   IconButton,
+  useMediaQuery,
+  useTheme,
+  Divider,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
-import { ArrowDropDown, Settings, Logout } from '@mui/icons-material';
+import { 
+  ArrowDropDown, 
+  Settings, 
+  Logout, 
+  Menu as MenuIcon,
+  Dashboard as DashboardIcon,
+  Visibility as ViewerIcon,
+  Build as BuilderIcon,
+  Storage as DataIcon
+} from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,6 +36,9 @@ function Navigation() {
   const { hasData } = useData();
   const { user, logout, hasPermission } = useAuth();
   const [managerMenuAnchor, setManagerMenuAnchor] = useState(null);
+  const [mobileMenuAnchor, setMobileMenuAnchor] = useState(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   // Manager-only features (dropdown menu)
   const managerFeatures = [
@@ -35,10 +52,10 @@ function Navigation() {
 
   // Main tabs (role-based visibility)
   const allMainTabs = [
-    { label: 'Builder', path: '/builder', requiredRole: 'supervisor' },
-    { label: 'Viewer', path: '/viewer', requiredRole: 'staff' },
-    { label: 'Dashboard', path: '/dashboard', requiredRole: 'staff' },
-    { label: 'Data', path: '/data', requiredRole: 'manager' },
+    { label: 'Builder', path: '/builder', requiredRole: 'supervisor', icon: <BuilderIcon /> },
+    { label: 'Viewer', path: '/viewer', requiredRole: 'staff', icon: <ViewerIcon /> },
+    { label: 'Dashboard', path: '/dashboard', requiredRole: 'staff', icon: <DashboardIcon /> },
+    { label: 'Data', path: '/data', requiredRole: 'manager', icon: <DataIcon /> },
   ];
 
   // Filter tabs based on user permissions
@@ -68,6 +85,19 @@ function Navigation() {
     handleManagerMenuClose();
   };
 
+  const handleMobileMenuOpen = (event) => {
+    setMobileMenuAnchor(event.currentTarget);
+  };
+
+  const handleMobileMenuClose = () => {
+    setMobileMenuAnchor(null);
+  };
+
+  const handleNavigation = (path) => {
+    navigate(path);
+    handleMobileMenuClose();
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/viewer');
@@ -80,84 +110,175 @@ function Navigation() {
           SZA Schedule App
         </Typography>
         
-        {/* User Info */}
-        {user && (
+        {/* User Info - Hide on mobile */}
+        {user && !isMobile && (
           <Typography variant="body2" sx={{ mr: 2 }}>
             {user.name} ({user.role})
           </Typography>
         )}
         
-        {/* Manager Features Dropdown - Only show for managers */}
-        {hasPermission('manager') && (
+        {/* Mobile Navigation */}
+        {isMobile ? (
           <>
-            <Button
+            <IconButton
               color="inherit"
-              onClick={handleManagerMenuOpen}
-              endIcon={<ArrowDropDown />}
-              startIcon={<Settings />}
-              sx={{ 
-                mr: 2,
-                backgroundColor: isManagerFeature ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                }
-              }}
+              onClick={handleMobileMenuOpen}
+              sx={{ ml: 1 }}
+              title="Menu"
             >
-              Manager
-            </Button>
+              <MenuIcon />
+            </IconButton>
             
             <Menu
-              anchorEl={managerMenuAnchor}
-              open={Boolean(managerMenuAnchor)}
-              onClose={handleManagerMenuClose}
+              anchorEl={mobileMenuAnchor}
+              open={Boolean(mobileMenuAnchor)}
+              onClose={handleMobileMenuClose}
               anchorOrigin={{
                 vertical: 'bottom',
-                horizontal: 'left',
+                horizontal: 'right',
               }}
               transformOrigin={{
                 vertical: 'top',
-                horizontal: 'left',
+                horizontal: 'right',
               }}
+              sx={{ mt: 1 }}
             >
-              {managerFeatures.map((feature) => (
+              {/* User Info in Mobile Menu */}
+              {user && (
+                <MenuItem disabled>
+                  <ListItemText 
+                    primary={user.name} 
+                    secondary={user.role}
+                    sx={{ color: 'text.secondary' }}
+                  />
+                </MenuItem>
+              )}
+              
+              {user && <Divider />}
+              
+              {/* Main Navigation Items */}
+              {mainTabs.map((tab) => (
                 <MenuItem
-                  key={feature.path}
-                  onClick={() => handleManagerFeatureSelect(feature.path)}
-                  selected={location.pathname === feature.path}
+                  key={tab.path}
+                  onClick={() => handleNavigation(tab.path)}
+                  selected={location.pathname === tab.path}
                 >
-                  {feature.label}
+                  <ListItemIcon>{tab.icon}</ListItemIcon>
+                  <ListItemText>{tab.label}</ListItemText>
                 </MenuItem>
               ))}
+              
+              {/* Manager Features */}
+              {hasPermission('manager') && (
+                <>
+                  <Divider />
+                  <MenuItem disabled>
+                    <ListItemText 
+                      primary="Manager Tools" 
+                      sx={{ color: 'text.secondary', fontWeight: 'bold' }}
+                    />
+                  </MenuItem>
+                  {managerFeatures.map((feature) => (
+                    <MenuItem
+                      key={feature.path}
+                      onClick={() => handleNavigation(feature.path)}
+                      selected={location.pathname === feature.path}
+                    >
+                      <ListItemIcon><Settings /></ListItemIcon>
+                      <ListItemText>{feature.label}</ListItemText>
+                    </MenuItem>
+                  ))}
+                </>
+              )}
+              
+              {/* Logout */}
+              {user && (
+                <>
+                  <Divider />
+                  <MenuItem onClick={handleLogout}>
+                    <ListItemIcon><Logout /></ListItemIcon>
+                    <ListItemText>Logout</ListItemText>
+                  </MenuItem>
+                </>
+              )}
             </Menu>
           </>
-        )}
+        ) : (
+          /* Desktop Navigation */
+          <>
+            {/* Manager Features Dropdown - Only show for managers */}
+            {hasPermission('manager') && (
+              <>
+                <Button
+                  color="inherit"
+                  onClick={handleManagerMenuOpen}
+                  endIcon={<ArrowDropDown />}
+                  startIcon={<Settings />}
+                  sx={{ 
+                    mr: 2,
+                    backgroundColor: isManagerFeature ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    }
+                  }}
+                >
+                  Manager
+                </Button>
+                
+                <Menu
+                  anchorEl={managerMenuAnchor}
+                  open={Boolean(managerMenuAnchor)}
+                  onClose={handleManagerMenuClose}
+                  anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'left',
+                  }}
+                  transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'left',
+                  }}
+                >
+                  {managerFeatures.map((feature) => (
+                    <MenuItem
+                      key={feature.path}
+                      onClick={() => handleManagerFeatureSelect(feature.path)}
+                      selected={location.pathname === feature.path}
+                    >
+                      {feature.label}
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </>
+            )}
 
-        {/* Main Tabs */}
-        <Tabs
-          value={effectiveCurrentTab === false ? false : (effectiveCurrentTab >= 0 ? effectiveCurrentTab : 0)}
-          onChange={handleTabChange}
-          textColor="inherit"
-          indicatorColor="secondary"
-        >
-          {mainTabs.map((tab, index) => (
-            <Tab
-              key={tab.path}
-              label={tab.label}
-              sx={{ minHeight: 64 }}
-            />
-          ))}
-        </Tabs>
+            {/* Main Tabs */}
+            <Tabs
+              value={effectiveCurrentTab === false ? false : (effectiveCurrentTab >= 0 ? effectiveCurrentTab : 0)}
+              onChange={handleTabChange}
+              textColor="inherit"
+              indicatorColor="secondary"
+            >
+              {mainTabs.map((tab, index) => (
+                <Tab
+                  key={tab.path}
+                  label={tab.label}
+                  sx={{ minHeight: 64 }}
+                />
+              ))}
+            </Tabs>
 
-        {/* Logout Button */}
-        {user && (
-          <IconButton
-            color="inherit"
-            onClick={handleLogout}
-            sx={{ ml: 1 }}
-            title="Logout"
-          >
-            <Logout />
-          </IconButton>
+            {/* Logout Button */}
+            {user && (
+              <IconButton
+                color="inherit"
+                onClick={handleLogout}
+                sx={{ ml: 1 }}
+                title="Logout"
+              >
+                <Logout />
+              </IconButton>
+            )}
+          </>
         )}
       </Toolbar>
     </AppBar>

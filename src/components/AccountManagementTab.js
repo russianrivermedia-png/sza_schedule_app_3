@@ -42,7 +42,9 @@ import {
   ExpandMore as ExpandMoreIcon,
   People as PeopleIcon,
   Person as PersonIcon,
-  Group as GroupIcon
+  Group as GroupIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -72,6 +74,14 @@ function AccountManagementTab() {
     unlinkedRecords: true
   });
   const [userFilter, setUserFilter] = useState('all'); // 'all', 'linked', 'unlinked'
+  const [showPasswords, setShowPasswords] = useState({}); // Track which passwords to show
+
+  const togglePasswordVisibility = (userId) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [userId]: !prev[userId]
+    }));
+  };
 
   useEffect(() => {
     console.log('AccountManagementTab mounted, currentUser:', currentUser);
@@ -605,7 +615,7 @@ function AccountManagementTab() {
             </Typography>
             
             {/* Filter Controls */}
-            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
               <Typography variant="body2" fontWeight="medium">
                 Filter:
               </Typography>
@@ -621,6 +631,24 @@ function AccountManagementTab() {
                   <MenuItem value="unlinked">Unlinked Accounts</MenuItem>
                 </Select>
               </FormControl>
+              
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={Object.values(showPasswords).some(Boolean) ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                onClick={() => {
+                  const allUsers = getFilteredUsers();
+                  const allVisible = allUsers.every(user => showPasswords[user.id]);
+                  const newShowPasswords = {};
+                  allUsers.forEach(user => {
+                    newShowPasswords[user.id] = !allVisible;
+                  });
+                  setShowPasswords(newShowPasswords);
+                }}
+                sx={{ ml: 2 }}
+              >
+                {Object.values(showPasswords).some(Boolean) ? 'Hide All Passwords' : 'Show All Passwords'}
+              </Button>
             </Box>
 
             <Grid container spacing={2}>
@@ -652,6 +680,19 @@ function AccountManagementTab() {
                         <Typography variant="body2" gutterBottom>
                           <strong>Email:</strong> {user.email || 'Not set'}
                         </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <Typography variant="body2">
+                            <strong>Password:</strong> 
+                            {showPasswords[user.id] ? user.password : '••••••••'}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => togglePasswordVisibility(user.id)}
+                            sx={{ p: 0.5 }}
+                          >
+                            {showPasswords[user.id] ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                          </IconButton>
+                        </Box>
                         <Typography variant="body2" gutterBottom>
                           <strong>Role:</strong>
                           <Chip
