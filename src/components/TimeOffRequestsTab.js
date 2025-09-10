@@ -21,6 +21,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  FormControlLabel,
+  Switch,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -49,6 +51,7 @@ function TimeOffRequestsTab() {
     startDate: '',
     endDate: '',
     reason: '',
+    preApprove: false,
   });
 
   // Helper functions for time off requests
@@ -111,6 +114,7 @@ function TimeOffRequestsTab() {
         startDate: request.start_date,
         endDate: request.end_date,
         reason: request.reason || '',
+        preApprove: false,
       });
     } else {
       setEditingRequest(null);
@@ -119,6 +123,7 @@ function TimeOffRequestsTab() {
         startDate: '',
         endDate: '',
         reason: '',
+        preApprove: false,
       });
     }
     setOpenDialog(true);
@@ -132,6 +137,7 @@ function TimeOffRequestsTab() {
       startDate: '',
       endDate: '',
       reason: '',
+      preApprove: false,
     });
   };
 
@@ -139,21 +145,19 @@ function TimeOffRequestsTab() {
     if (!timeOffForm.staffId || !timeOffForm.startDate || !timeOffForm.endDate) return;
 
     try {
+      const requestData = {
+        staff_id: timeOffForm.staffId,
+        start_date: timeOffForm.startDate,
+        end_date: timeOffForm.endDate,
+        reason: timeOffForm.reason || null,
+        status: timeOffForm.preApprove ? 'approved' : 'pending',
+      };
+
       if (editingRequest) {
-        const updatedRequest = await timeOffHelpers.update(editingRequest.id, {
-          staff_id: timeOffForm.staffId,
-          start_date: timeOffForm.startDate,
-          end_date: timeOffForm.endDate,
-          reason: timeOffForm.reason || null,
-        });
+        const updatedRequest = await timeOffHelpers.update(editingRequest.id, requestData);
         dispatch({ type: 'UPDATE_TIME_OFF_REQUEST', payload: updatedRequest });
       } else {
-        const newRequest = await timeOffHelpers.add({
-          staff_id: timeOffForm.staffId,
-          start_date: timeOffForm.startDate,
-          end_date: timeOffForm.endDate,
-          reason: timeOffForm.reason || null,
-        });
+        const newRequest = await timeOffHelpers.add(requestData);
         dispatch({ type: 'ADD_TIME_OFF_REQUEST', payload: newRequest });
       }
       handleCloseDialog();
@@ -526,6 +530,25 @@ function TimeOffRequestsTab() {
             rows={3}
             placeholder="Please provide a reason for your time off request..."
           />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={timeOffForm.preApprove}
+                onChange={(e) => setTimeOffForm({ ...timeOffForm, preApprove: e.target.checked })}
+                color="primary"
+              />
+            }
+            label="Pre-approve this request"
+            sx={{ mt: 2 }}
+          />
+          {timeOffForm.preApprove && (
+            <Alert severity="success" sx={{ mt: 1 }}>
+              <Typography variant="body2">
+                This request will be automatically approved when created.
+              </Typography>
+            </Alert>
+          )}
 
           {timeOffForm.startDate && timeOffForm.endDate && isLongerThanSevenDays(timeOffForm.startDate, timeOffForm.endDate) && (
             <Alert severity="warning" sx={{ mt: 1 }}>
