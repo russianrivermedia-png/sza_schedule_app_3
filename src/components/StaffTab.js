@@ -26,6 +26,10 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
+  Collapse,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -36,6 +40,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   Palette as PaletteIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { format } from 'date-fns';
@@ -43,6 +48,26 @@ import { staffHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
 import RoleAssignmentPanel from './RoleAssignmentPanel';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+// Helper functions for time off requests
+const isRequestPast = (request) => {
+  const today = new Date();
+  const endDate = new Date(request.end_date);
+  return endDate < today;
+};
+
+const isRequestFuture = (request) => {
+  const today = new Date();
+  const startDate = new Date(request.start_date);
+  return startDate > today;
+};
+
+const isRequestCurrent = (request) => {
+  const today = new Date();
+  const startDate = new Date(request.start_date);
+  const endDate = new Date(request.end_date);
+  return startDate <= today && endDate >= today;
+};
 
 // Default staff color options
 const DEFAULT_STAFF_COLORS = {
@@ -86,6 +111,7 @@ function StaffTab() {
     trainedRoles: [],
     targetShifts: 5,
     staffColor: 'default',
+    onCall: false,
   });
   const [colorFormData, setColorFormData] = useState({
     key: '',
@@ -191,6 +217,7 @@ function StaffTab() {
         trainedRoles: staff.trained_roles || [],
         targetShifts: staff.target_shifts || 5,
         staffColor: staff.staff_color || 'default',
+        onCall: staff.on_call || false,
       });
     } else {
       setEditingStaff(null);
@@ -203,6 +230,7 @@ function StaffTab() {
         trainedRoles: [],
         targetShifts: 5,
         staffColor: 'default',
+        onCall: false,
       });
     }
     setOpenDialog(true);
@@ -220,6 +248,7 @@ function StaffTab() {
       trainedRoles: [],
       targetShifts: 5,
       staffColor: 'default',
+      onCall: false,
     });
   };
 
@@ -248,6 +277,7 @@ function StaffTab() {
         email: formData.email || null,
         phone: formData.phone || null,
         target_shifts: formData.targetShifts || 5,
+        on_call: formData.onCall,
     };
 
     if (editingStaff) {
@@ -368,23 +398,6 @@ function StaffTab() {
     return timeOffRequests.filter(t => t.staff_id === staffId && t.status === 'approved');
   };
 
-  const getStaffAvailabilityStatus = (staff) => {
-    const today = new Date();
-    const dayOfWeek = DAYS_OF_WEEK[today.getDay() === 0 ? 6 : today.getDay() - 1];
-    const hasTimeOff = getStaffTimeOff(staff.id).some(t => {
-      const startDate = new Date(t.startDate);
-      const endDate = new Date(t.endDate);
-      return today >= startDate && today <= endDate;
-    });
-
-    if (hasTimeOff) {
-      return { status: 'time-off', message: 'Time Off' };
-    }
-    if (!staff.availability || !staff.availability.includes(dayOfWeek)) {
-      return { status: 'unavailable', message: 'Not Available' };
-    }
-    return { status: 'available', message: 'Available' };
-  };
 
   const calculateTenure = (hireDate) => {
     if (!hireDate) return null;
@@ -575,7 +588,6 @@ function StaffTab() {
 
       <Grid container spacing={3}>
           {getFilteredAndSortedStaff().map((member) => {
-          const availabilityStatus = getStaffAvailabilityStatus(member);
           const timeOffRequests = getStaffTimeOff(member.id);
           
           return (
@@ -639,21 +651,20 @@ function StaffTab() {
                       <strong>Target Shifts:</strong> {member.target_shifts || 5}
                     </Typography>
                     
-                    <Typography variant="body2" gutterBottom>
-                      <strong>Total Shifts Worked:</strong> {member.shiftCount || 0}
-                    </Typography>
+                    {member.on_call && (
+                      <Typography variant="body2" gutterBottom>
+                        <strong>Status:</strong>
+                        <Chip
+                          label="ON CALL"
+                          color="warning"
+                          size="small"
+                          sx={{ ml: 1 }}
+                        />
+                      </Typography>
+                    )}
                     
                     <Typography variant="body2" gutterBottom>
-                      <strong>Status:</strong>
-                      <Chip
-                        label={availabilityStatus.message}
-                        color={
-                          availabilityStatus.status === 'available' ? 'success' :
-                          availabilityStatus.status === 'time-off' ? 'warning' : 'error'
-                        }
-                        size="small"
-                        sx={{ ml: 1 }}
-                      />
+                      <strong>Total Shifts Worked:</strong> {member.shiftCount || 0}
                     </Typography>
 
                     {timeOffRequests.length > 0 && (
@@ -808,6 +819,23 @@ function StaffTab() {
                   inputProps={{ min: 0, max: 7 }}
                 />
 
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.onCall}
+                      onChange={(e) => setFormData({ ...formData, onCall: e.target.checked })}
+                      color="warning"
+                    />
+                  }
+                  label="On Call Status"
+                  sx={{ mt: 2 }}
+                />
+                {formData.onCall && (
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    On call staff are not available for regular scheduling but can be manually assigned with a warning.
+                  </Alert>
+                )}
+
                 <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
                   Staff Color
                 </Typography>
@@ -947,6 +975,23 @@ function StaffTab() {
               margin="normal"
               inputProps={{ min: 0, max: 7 }}
             />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.onCall}
+                  onChange={(e) => setFormData({ ...formData, onCall: e.target.checked })}
+                  color="warning"
+                />
+              }
+              label="On Call Status"
+              sx={{ mt: 2 }}
+            />
+            {formData.onCall && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                On call staff are not available for regular scheduling but can be manually assigned with a warning.
+              </Alert>
+            )}
 
             <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
               Staff Color
@@ -1095,56 +1140,185 @@ function StaffTab() {
       <Dialog open={timeOffListOpen} onClose={() => setTimeOffListOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Time Off Requests</DialogTitle>
         <DialogContent>
-          <List>
-            {timeOffRequests.map((request) => (
-              <ListItem key={request.id} divider>
-                <ListItemText
-                  primary={getStaffName(request.staff_id)}
-                  secondary={
-                    <Box>
-                      <Typography variant="body2">
-                        {format(new Date(request.start_date), 'MMM dd, yyyy')} - {format(new Date(request.end_date), 'MMM dd, yyyy')}
-                      </Typography>
-                      {request.reason && (
-                        <Typography variant="body2" color="text.secondary">
-                          Reason: {request.reason}
-                        </Typography>
-                      )}
-                      <Chip
-                        label={request.status}
-                        color={request.status === 'approved' ? 'success' : 'warning'}
-                        size="small"
-                        sx={{ mt: 1 }}
+          <Box sx={{ mt: 1 }}>
+            {/* Current Time Off Requests */}
+            <Accordion defaultExpanded>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="h6" color="primary">
+                  Current Time Off ({timeOffRequests.filter(isRequestCurrent).length})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <List>
+                  {timeOffRequests.filter(isRequestCurrent).map((request) => (
+                    <ListItem key={request.id} divider>
+                      <ListItemText
+                        primary={getStaffName(request.staff_id)}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2">
+                              {format(new Date(request.start_date), 'MMM dd, yyyy')} - {format(new Date(request.end_date), 'MMM dd, yyyy')}
+                            </Typography>
+                            {request.reason && (
+                              <Typography variant="body2" color="text.secondary">
+                                Reason: {request.reason}
+                              </Typography>
+                            )}
+                            <Chip
+                              label={request.status}
+                              color={request.status === 'approved' ? 'success' : 'warning'}
+                              size="small"
+                              sx={{ mt: 1 }}
+                            />
+                          </Box>
+                        }
                       />
-                    </Box>
-                  }
-                />
-                <ListItemSecondaryAction>
-                  {request.status === 'pending' && (
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <IconButton
-                        color="success"
-                        onClick={() => handleTimeOffStatusChange(request.id, 'approved')}
-                      >
-                        <CheckCircleIcon />
-                      </IconButton>
-                      <IconButton
-                        color="error"
-                        onClick={() => handleTimeOffStatusChange(request.id, 'denied')}
-                      >
-                        <CancelIcon />
-                      </IconButton>
-                    </Box>
+                      <ListItemSecondaryAction>
+                        {request.status === 'pending' && (
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <IconButton
+                              color="success"
+                              onClick={() => handleTimeOffStatusChange(request.id, 'approved')}
+                            >
+                              <CheckCircleIcon />
+                            </IconButton>
+                            <IconButton
+                              color="error"
+                              onClick={() => handleTimeOffStatusChange(request.id, 'denied')}
+                            >
+                              <CancelIcon />
+                            </IconButton>
+                          </Box>
+                        )}
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  ))}
+                  {timeOffRequests.filter(isRequestCurrent).length === 0 && (
+                    <ListItem>
+                      <ListItemText primary="No current time off requests" />
+                    </ListItem>
                   )}
-                </ListItemSecondaryAction>
-              </ListItem>
-            ))}
+                </List>
+              </AccordionDetails>
+            </Accordion>
+
+            {/* Future Time Off Requests */}
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="h6" color="info.main">
+                  Future Time Off ({timeOffRequests.filter(isRequestFuture).length})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <List>
+                  {timeOffRequests.filter(isRequestFuture).map((request) => (
+                    <ListItem key={request.id} divider>
+                      <ListItemText
+                        primary={getStaffName(request.staff_id)}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2">
+                              {format(new Date(request.start_date), 'MMM dd, yyyy')} - {format(new Date(request.end_date), 'MMM dd, yyyy')}
+                            </Typography>
+                            {request.reason && (
+                              <Typography variant="body2" color="text.secondary">
+                                Reason: {request.reason}
+                              </Typography>
+                            )}
+                            <Chip
+                              label={request.status}
+                              color={request.status === 'approved' ? 'success' : 'warning'}
+                              size="small"
+                              sx={{ mt: 1 }}
+                            />
+                          </Box>
+                        }
+                      />
+                      <ListItemSecondaryAction>
+                        {request.status === 'pending' && (
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <IconButton
+                              color="success"
+                              onClick={() => handleTimeOffStatusChange(request.id, 'approved')}
+                            >
+                              <CheckCircleIcon />
+                            </IconButton>
+                            <IconButton
+                              color="error"
+                              onClick={() => handleTimeOffStatusChange(request.id, 'denied')}
+                            >
+                              <CancelIcon />
+                            </IconButton>
+                          </Box>
+                        )}
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  ))}
+                  {timeOffRequests.filter(isRequestFuture).length === 0 && (
+                    <ListItem>
+                      <ListItemText primary="No future time off requests" />
+                    </ListItem>
+                  )}
+                </List>
+              </AccordionDetails>
+            </Accordion>
+
+            {/* Past Time Off Requests */}
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="h6" color="text.secondary">
+                  Past Time Off ({timeOffRequests.filter(isRequestPast).length})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <List>
+                  {timeOffRequests.filter(isRequestPast).map((request) => (
+                    <ListItem key={request.id} divider>
+                      <ListItemText
+                        primary={getStaffName(request.staff_id)}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2">
+                              {format(new Date(request.start_date), 'MMM dd, yyyy')} - {format(new Date(request.end_date), 'MMM dd, yyyy')}
+                            </Typography>
+                            {request.reason && (
+                              <Typography variant="body2" color="text.secondary">
+                                Reason: {request.reason}
+                              </Typography>
+                            )}
+                            <Chip
+                              label={request.status}
+                              color={request.status === 'approved' ? 'success' : 'error'}
+                              size="small"
+                              sx={{ mt: 1 }}
+                            />
+                          </Box>
+                        }
+                      />
+                      <ListItemSecondaryAction>
+                        <Typography variant="caption" color="text.secondary">
+                          Completed
+                        </Typography>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  ))}
+                  {timeOffRequests.filter(isRequestPast).length === 0 && (
+                    <ListItem>
+                      <ListItemText primary="No past time off requests" />
+                    </ListItem>
+                  )}
+                </List>
+              </AccordionDetails>
+            </Accordion>
+
             {timeOffRequests.length === 0 && (
-              <ListItem>
-                <ListItemText primary="No time off requests found" />
-              </ListItem>
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="h6" color="text.secondary">
+                  No time off requests found
+                </Typography>
+              </Box>
             )}
-          </List>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTimeOffListOpen(false)}>Close</Button>

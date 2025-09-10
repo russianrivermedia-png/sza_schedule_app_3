@@ -65,6 +65,7 @@ function ScheduleBuilderTab() {
     currentWeek, 
     dispatch,
     loading,
+    countOnlyPastShifts,
     // Use optimized lookup functions
     getStaffById,
     getRoleById,
@@ -658,6 +659,16 @@ function ScheduleBuilderTab() {
             // Check target shifts before assignment
         const staffMember = getStaffById(staffId);
         if (staffMember) {
+          // Check if staff is on call and show warning
+          if (staffMember.on_call) {
+            const proceed = window.confirm(
+              `⚠️ ON CALL STAFF: ${staffMember.name} is currently on call and not available for regular scheduling.\n\n` +
+              `Are you sure you want to assign them to this shift?`
+            );
+            if (!proceed) {
+              return;
+            }
+          }
           const targetShifts = staffMember.target_shifts || staffMember.targetShifts || 5;
 
           // Count current week assignments from local schedule
@@ -799,7 +810,8 @@ function ScheduleBuilderTab() {
         type: 'UPDATE_STAFF_SHIFT_COUNT',
         payload: {
           staffId: staffId,
-          roleId: roleId
+          roleId: roleId,
+          assignmentDate: day.toISOString()
         }
       });
     }
@@ -1232,6 +1244,9 @@ function ScheduleBuilderTab() {
             const staffMember = getStaffById(s.id);
             if (!staffMember) return false;
             
+            // Skip on call staff - they should only be manually assigned
+            if (staffMember.on_call) return false;
+            
             // Special debugging for Nathan and Will
             if (staffMember.name.includes('Nathan') || staffMember.name.includes('Will')) {
               console.log(`🔍 FILTERING ${staffMember.name} for ${dayOfWeek} (Role: ${role?.name || roleId}):`, {
@@ -1344,7 +1359,8 @@ function ScheduleBuilderTab() {
                 type: 'UPDATE_STAFF_SHIFT_COUNT',
                 payload: {
                   staffId: staffMember.id,
-                  roleId: roleId
+                  roleId: roleId,
+                  assignmentDate: dayDate.toISOString()
                 }
               });
               
@@ -1778,6 +1794,29 @@ function ScheduleBuilderTab() {
             Conflict cache: {conflictCache.size} entries • 
             <span style={{ color: 'green' }}>✓ Optimized lookups enabled</span>
           </Typography>
+        </Box>
+
+        {/* Shift Counting Mode Toggle */}
+        <Box sx={{ mb: 2, p: 1, bgcolor: 'info.50', borderRadius: 1, border: '1px solid', borderColor: 'info.200' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Shift Counting Mode:</strong>
+            </Typography>
+            <Button
+              variant={countOnlyPastShifts ? "contained" : "outlined"}
+              size="small"
+              onClick={() => dispatch({ type: 'TOGGLE_COUNT_ONLY_PAST_SHIFTS' })}
+              sx={{ minWidth: 'auto', px: 2 }}
+            >
+              {countOnlyPastShifts ? 'Past Shifts Only (Recommended)' : 'Count All Assignments'}
+            </Button>
+            <Typography variant="caption" color="text.secondary">
+              {countOnlyPastShifts 
+                ? '✓ Only shifts that have already occurred are counted in staff totals'
+                : '⚠ All assigned shifts are counted immediately (may inflate totals)'
+              }
+            </Typography>
+          </Box>
         </Box>
 
         <Typography variant="h6" sx={{ mb: 2 }}>

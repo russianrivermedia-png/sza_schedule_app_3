@@ -29,8 +29,36 @@ import html2canvas from 'html2canvas';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+// Default staff color options (matching StaffTab)
+const DEFAULT_STAFF_COLORS = {
+  default: { name: 'Default', color: '#9e9e9e' },
+  blue: { name: 'Blue', color: '#2196f3' },
+  red: { name: 'Red', color: '#f44336' },
+  green: { name: 'Green', color: '#4caf50' },
+  purple: { name: 'Purple', color: '#9c27b0' },
+  orange: { name: 'Orange', color: '#ff9800' },
+  yellow: { name: 'Yellow', color: '#ffeb3b' },
+  pink: { name: 'Pink', color: '#e91e63' },
+  teal: { name: 'Teal', color: '#009688' },
+  indigo: { name: 'Indigo', color: '#3f51b5' },
+};
+
+// Default tour color options (matching TourCreationTab)
+const DEFAULT_TOUR_COLORS = {
+  default: { name: 'Default', color: '#9e9e9e' },
+  blue: { name: 'Confirmed', color: '#2196f3' },
+  red: { name: 'Red', color: '#f44336' },
+  green: { name: 'Green', color: '#4caf50' },
+  purple: { name: 'Purple', color: '#9c27b0' },
+  orange: { name: 'Orange', color: '#ff9800' },
+  yellow: { name: 'Open', color: '#ffeb3b' },
+  pink: { name: 'Pink', color: '#e91e63' },
+  teal: { name: 'Teal', color: '#009688' },
+  indigo: { name: 'Indigo', color: '#3f51b5' },
+};
+
 function ScheduleViewerTab() {
-  const { staff, shifts, roles, tours, schedules, currentWeek } = useData();
+  const { staff, shifts, roles, tours, schedules, currentWeek, loading } = useData();
   const [selectedWeek, setSelectedWeek] = useState(currentWeek);
   const [weekSchedule, setWeekSchedule] = useState({});
   const scheduleRef = useRef(null);
@@ -42,17 +70,61 @@ function ScheduleViewerTab() {
   // Load week schedule when week changes
   useEffect(() => {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
-    const existingSchedule = schedules.find(s => s.weekKey === weekKey);
+    console.log('🔍 ScheduleViewerTab - Available schedules:', schedules);
+    console.log('🔍 ScheduleViewerTab - Looking for schedule with weekKey:', weekKey);
+    const existingSchedule = schedules?.find(s => s.weekKey === weekKey);
+    console.log('🔍 ScheduleViewerTab - Found schedule:', existingSchedule);
     if (existingSchedule) {
+      console.log('🔍 ScheduleViewerTab - Found schedule data:', existingSchedule.days);
       setWeekSchedule(existingSchedule.days || {});
     } else {
+      console.log('🔍 ScheduleViewerTab - No schedule found for week:', weekKey);
       setWeekSchedule({});
     }
-  }, [selectedWeek, schedules, weekStart]);
+  }, [selectedWeek, schedules]);
+
+  // Don't render if data is still loading
+  if (loading || !staff || !roles || !tours || !schedules) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography>Loading schedule data...</Typography>
+      </Box>
+    );
+  }
 
   const getShiftTours = (shift) => {
-    if (!shift.tours || shift.tours.length === 0) return [];
+    if (!shift.tours || shift.tours.length === 0 || !tours) return [];
     return shift.tours.map(tourId => tours.find(t => t.id === tourId)).filter(Boolean);
+  };
+
+  // Helper function to get staff color value
+  const getStaffColor = (staffMember, shiftStaffColors, staffId) => {
+    // First check if there's a custom color for this staff member in this shift
+    if (shiftStaffColors && shiftStaffColors[staffId]) {
+      return shiftStaffColors[staffId];
+    }
+    // Then check the staff member's default color
+    if (staffMember && staffMember.staff_color) {
+      const colorKey = staffMember.staff_color;
+      return DEFAULT_STAFF_COLORS[colorKey]?.color || '#9e9e9e';
+    }
+    // Fallback to default
+    return '#9e9e9e';
+  };
+
+  // Helper function to get tour color value
+  const getTourColor = (tour, shiftTourColors, tourId) => {
+    // First check if there's a custom color for this tour in this shift
+    if (shiftTourColors && shiftTourColors[tourId]) {
+      return shiftTourColors[tourId];
+    }
+    // Then check the tour's default color
+    if (tour && tour.default_color) {
+      const colorKey = tour.default_color;
+      return DEFAULT_TOUR_COLORS[colorKey]?.color || '#9e9e9e';
+    }
+    // Fallback to default
+    return '#9e9e9e';
   };
 
   const exportToPDF = () => {
@@ -133,6 +205,11 @@ function ScheduleViewerTab() {
     const dayKey = format(day, 'yyyy-MM-dd');
     const daySchedule = weekSchedule[dayKey] || { shifts: [] };
     const dayOfWeek = DAYS_OF_WEEK[dayIndex];
+    
+    console.log('🔍 ScheduleViewerTab - Rendering day:', { dayKey, daySchedule, dayOfWeek });
+    if (daySchedule.shifts && daySchedule.shifts.length > 0) {
+      console.log('🔍 ScheduleViewerTab - Sample shift structure:', daySchedule.shifts[0]);
+    }
 
     if (daySchedule.shifts.length === 0) {
       return (
@@ -171,6 +248,20 @@ function ScheduleViewerTab() {
                 {shiftsWithTours.map((shift) => {
                 const shiftTours = getShiftTours(shift);
                 const hasNotes = shift.notes && shift.notes.trim().length > 0;
+                
+                console.log('🔍 ScheduleViewerTab - Rendering shift:', { 
+                  shiftId: shift.id, 
+                  shiftName: shift.name, 
+                  assignedStaff: shift.assignedStaff,
+                  requiredRoles: shift.requiredRoles,
+                  fullShiftData: shift
+                });
+                
+                // Debug: Log the actual assignedStaff structure
+                if (shift.assignedStaff) {
+                  console.log('🔍 ScheduleViewerTab - assignedStaff structure:', shift.assignedStaff);
+                  console.log('🔍 ScheduleViewerTab - assignedStaff keys:', Object.keys(shift.assignedStaff));
+                }
 
                 return (
                     <TableRow key={shift.id}>
@@ -186,30 +277,34 @@ function ScheduleViewerTab() {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {shift.requiredRoles.map(roleId => {
-                          const role = roles.find(r => r.id === roleId);
-                          const assignedStaffId = shift.assignedStaff[roleId];
-                          const assignedStaff = staff.find(s => s.id === assignedStaffId);
-                          
-                          return (
-                              <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Tooltip title={role?.name || 'Unknown Role'} arrow placement="top">
-                              <Chip
-                                    label={assignedStaff ? assignedStaff.name.split(' ')[0] : 'Unassigned'}
-                                size="small"
-                                    variant="filled"
-                                    sx={{
-                                      fontSize: '0.7rem',
-                                      height: 20,
-                                      bgcolor: shift.staffColors?.[assignedStaffId] || '#9e9e9e',
-                                      color: 'white',
-                                      fontWeight: 'medium',
-                                    }}
-                                  />
-                                </Tooltip>
-                            </Box>
-                          );
-                        })}
+                        {/* If requiredRoles is defined, use it; otherwise derive from assignedStaff keys */}
+                        {(() => {
+                          const roleIds = shift.requiredRoles || (shift.assignedStaff ? Object.keys(shift.assignedStaff) : []);
+                          return roleIds.map(roleId => {
+                            const role = roles?.find(r => r.id === roleId);
+                            const assignedStaffId = shift.assignedStaff?.[roleId];
+                            const assignedStaff = staff?.find(s => s.id === assignedStaffId);
+                            
+                            return (
+                                <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Tooltip title={role?.name || 'Unknown Role'} arrow placement="top">
+                                <Chip
+                                      label={assignedStaff ? assignedStaff.name.split(' ')[0] : 'Unassigned'}
+                                  size="small"
+                                      variant="filled"
+                                      sx={{
+                                        fontSize: '0.7rem',
+                                        height: 20,
+                                        bgcolor: getStaffColor(assignedStaff, shift.staffColors, assignedStaffId),
+                                        color: 'white',
+                                        fontWeight: 'medium',
+                                      }}
+                                    />
+                                  </Tooltip>
+                              </Box>
+                            );
+                          });
+                        })()}
                       </Box>
                     </TableCell>
                     <TableCell>
@@ -223,7 +318,8 @@ function ScheduleViewerTab() {
                               sx={{ 
                                 fontSize: '0.7rem', 
                                 height: 20,
-                                bgcolor: shift.tourColors?.[tour.id] || 'transparent'
+                                bgcolor: getTourColor(tour, shift.tourColors, tour.id),
+                                color: 'white'
                               }}
                             />
                           ))}
@@ -282,30 +378,34 @@ function ScheduleViewerTab() {
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {shift.requiredRoles.map(roleId => {
-                      const role = roles.find(r => r.id === roleId);
-                      const assignedStaffId = shift.assignedStaff[roleId];
-                      const assignedStaff = staff.find(s => s.id === assignedStaffId);
-    
-    return (
-                        <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Tooltip title={role?.name || 'Unknown Role'} arrow placement="top">
-                    <Chip
-                              label={assignedStaff ? assignedStaff.name.split(' ')[0] : 'Unassigned'}
-                      size="small"
-                              variant="filled"
-                              sx={{
-                                fontSize: '0.7rem',
-                                height: 20,
-                                bgcolor: shift.staffColors?.[assignedStaffId] || '#9e9e9e',
-                                color: 'white',
-                                fontWeight: 'medium',
-                              }}
-                          />
-                        </Tooltip>
-                        </Box>
-                      );
-                    })}
+                    {/* If requiredRoles is defined, use it; otherwise derive from assignedStaff keys */}
+                    {(() => {
+                      const roleIds = shift.requiredRoles || (shift.assignedStaff ? Object.keys(shift.assignedStaff) : []);
+                      return roleIds.map(roleId => {
+                        const role = roles?.find(r => r.id === roleId);
+                        const assignedStaffId = shift.assignedStaff?.[roleId];
+                        const assignedStaff = staff?.find(s => s.id === assignedStaffId);
+      
+      return (
+                          <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Tooltip title={role?.name || 'Unknown Role'} arrow placement="top">
+                      <Chip
+                                label={assignedStaff ? assignedStaff.name.split(' ')[0] : 'Unassigned'}
+                        size="small"
+                                variant="filled"
+                                sx={{
+                                  fontSize: '0.7rem',
+                                  height: 20,
+                                  bgcolor: getStaffColor(assignedStaff, shift.staffColors, assignedStaffId),
+                                  color: 'white',
+                                  fontWeight: 'medium',
+                                }}
+                            />
+                          </Tooltip>
+                          </Box>
+                        );
+                      });
+                    })()}
                   </Box>
                   
                   {/* Notes indicator for non-tour shifts */}

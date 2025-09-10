@@ -16,6 +16,7 @@ const initialState = {
   loading: true,
   error: null,
   activeEditors: new Map(), // Track who is editing what
+  countOnlyPastShifts: true, // Default to counting only past shifts
 };
 
 // Performance optimization: Create efficient lookup indexes
@@ -149,6 +150,18 @@ function dataReducer(state, action) {
       }
       return { ...state, activeEditors: updatedActiveEditors };
     case 'UPDATE_STAFF_SHIFT_COUNT':
+      // Check if we should only count past shifts
+      if (state.countOnlyPastShifts && action.payload.assignmentDate) {
+        const assignmentDate = new Date(action.payload.assignmentDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Only count if the assignment date is in the past
+        if (assignmentDate >= today) {
+          return state; // Don't update count for future shifts
+        }
+      }
+      
       return {
         ...state,
         staff: state.staff.map(s =>
@@ -163,6 +176,11 @@ function dataReducer(state, action) {
               }
             : s
         )
+      };
+    case 'TOGGLE_COUNT_ONLY_PAST_SHIFTS':
+      return {
+        ...state,
+        countOnlyPastShifts: !state.countOnlyPastShifts
       };
     default:
       return state;
@@ -187,7 +205,7 @@ export function DataProvider({ children }) {
         supabase.from('roles').select('*'),
         supabase.from('shifts').select('*'),
         supabase.from('tours').select('*'),
-        supabase.from('schedules').select('id, days, created_at'),
+        supabase.from('schedules').select('id, days, created_at, version, last_modified_by, last_modified_at, is_locked, locked_by, locked_at'),
         supabase.from('time_off_requests').select('*'),
       ]);
 
@@ -282,20 +300,39 @@ export function DataProvider({ children }) {
       // Transform schedules data to include weekKey for compatibility
       const transformedSchedules = (schedulesResult.data || []).map(schedule => {
         // Extract week info from the days column
-        const weekKey = schedule.days?.week_key || format(new Date(), 'yyyy-MM-dd');
-        const weekStart = schedule.days?.week_start || new Date().toISOString();
+        let weekKey = format(new Date(), 'yyyy-MM-dd');
+        let weekStart = new Date().toISOString();
+        
+        // Try to extract week info from the days column
+        if (schedule.days && typeof schedule.days === 'object') {
+          if (schedule.days.week_key) {
+            weekKey = schedule.days.week_key;
+          }
+          if (schedule.days.week_start) {
+            weekStart = schedule.days.week_start;
+          }
+        }
+        
         console.log('Processing schedule:', { 
           id: schedule.id, 
           weekKey, 
           days: schedule.days,
           hasWeekKey: !!schedule.days?.week_key 
         });
+        
+        // Debug: Log sample shift data for 2025-09-07
+        if (weekKey === '2025-09-07' && schedule.days && schedule.days['2025-09-07'] && schedule.days['2025-09-07'].shifts) {
+          console.log('🔍 DataContext - Sample shift from 2025-09-07:', schedule.days['2025-09-07'].shifts[0]);
+        }
+        
         return {
           ...schedule,
           weekKey,
           week_start: weekStart
         };
       }).filter(schedule => schedule.days && typeof schedule.days === 'object');
+      console.log('🔍 DataContext - Raw schedules data:', schedulesResult.data);
+      console.log('🔍 DataContext - Transformed schedules:', transformedSchedules);
       dispatch({ type: 'SET_SCHEDULES', payload: transformedSchedules });
       dispatch({ type: 'SET_TIME_OFF_REQUESTS', payload: timeOffResult.data || [] });
 
