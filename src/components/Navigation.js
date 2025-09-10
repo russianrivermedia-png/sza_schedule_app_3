@@ -45,6 +45,9 @@ function Navigation() {
 
   const currentTab = mainTabs.findIndex(tab => tab.path === location.pathname);
   const isManagerFeature = managerFeatures.some(feature => feature.path === location.pathname);
+  
+  // If we're on a manager feature page, don't highlight any main tab
+  const effectiveCurrentTab = isManagerFeature ? -1 : currentTab;
 
   const handleTabChange = (event, newValue) => {
     navigate(mainTabs[newValue].path);
@@ -129,7 +132,7 @@ function Navigation() {
 
         {/* Main Tabs */}
         <Tabs
-          value={currentTab >= 0 ? currentTab : 0}
+          value={effectiveCurrentTab >= 0 ? effectiveCurrentTab : 0}
           onChange={handleTabChange}
           textColor="inherit"
           indicatorColor="secondary"
