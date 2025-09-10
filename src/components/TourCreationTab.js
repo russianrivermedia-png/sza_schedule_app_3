@@ -497,7 +497,7 @@ function TourCreationTab() {
             <TextField
               fullWidth
               label="Color Key *"
-              placeholder="e.g., purple, green, orange"
+              placeholder="e.g., custom1, custom2, custom3"
               value={colorFormData.key}
               onChange={(e) => setColorFormData({ ...colorFormData, key: e.target.value })}
               margin="normal"
@@ -509,7 +509,7 @@ function TourCreationTab() {
             <TextField
               fullWidth
               label="Color Name *"
-              placeholder="e.g., Purple, Green, Orange"
+              placeholder="e.g., Custom Color, Special Event, VIP"
               value={colorFormData.name}
               onChange={(e) => setColorFormData({ ...colorFormData, name: e.target.value })}
               margin="normal"

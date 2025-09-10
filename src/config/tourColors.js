@@ -6,12 +6,6 @@ export const DEFAULT_TOUR_COLORS = {
   blue: { name: 'Tree House', color: '#2196f3' },
   red: { name: 'Closed', color: '#f44336' },
   yellow: { name: 'Pending', color: '#ffeb3b' },
-  green: { name: 'Green', color: '#4caf50' },
-  purple: { name: 'Purple', color: '#9c27b0' },
-  orange: { name: 'Orange', color: '#ff9800' },
-  pink: { name: 'Pink', color: '#e91e63' },
-  teal: { name: 'Teal', color: '#009688' },
-  indigo: { name: 'Indigo', color: '#3f51b5' },
 };
 
 // Helper function to get tour color data

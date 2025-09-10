@@ -32,24 +32,12 @@ import {
 import { useData } from '../context/DataContext';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { DEFAULT_TOUR_COLORS, getTourColorValue } from '../config/tourColors';
+import { DEFAULT_STAFF_COLORS, getStaffColorValue } from '../config/staffColors';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// Default staff color options (matching StaffTab)
-const DEFAULT_STAFF_COLORS = {
-  default: { name: 'Default', color: '#9e9e9e' },
-  blue: { name: 'Blue', color: '#2196f3' },
-  red: { name: 'Red', color: '#f44336' },
-  green: { name: 'Green', color: '#4caf50' },
-  purple: { name: 'Purple', color: '#9c27b0' },
-  orange: { name: 'Orange', color: '#ff9800' },
-  yellow: { name: 'Yellow', color: '#ffeb3b' },
-  pink: { name: 'Pink', color: '#e91e63' },
-  teal: { name: 'Teal', color: '#009688' },
-  indigo: { name: 'Indigo', color: '#3f51b5' },
-};
 
 function ScheduleViewerTab() {
   const { staff, shifts, roles, tours, schedules, currentWeek, loading } = useData();
@@ -96,17 +84,7 @@ function ScheduleViewerTab() {
 
   // Helper function to get staff color value
   const getStaffColor = (staffMember, shiftStaffColors, staffId) => {
-    // First check if there's a custom color for this staff member in this shift
-    if (shiftStaffColors && shiftStaffColors[staffId]) {
-      return shiftStaffColors[staffId];
-    }
-    // Then check the staff member's default color
-    if (staffMember && staffMember.staff_color) {
-      const colorKey = staffMember.staff_color;
-      return DEFAULT_STAFF_COLORS[colorKey]?.color || '#9e9e9e';
-    }
-    // Fallback to default
-    return '#9e9e9e';
+    return getStaffColorValue(staffMember, shiftStaffColors, staffId);
   };
 
   // Helper function to get tour color value

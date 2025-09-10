@@ -45,6 +45,7 @@ import {
 import { useData } from '../context/DataContext';
 import { format } from 'date-fns';
 import { staffHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
+import { DEFAULT_STAFF_COLORS, getAllStaffColors } from '../config/staffColors';
 import RoleAssignmentPanel from './RoleAssignmentPanel';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -69,19 +70,6 @@ const isRequestCurrent = (request) => {
   return startDate <= today && endDate >= today;
 };
 
-// Default staff color options
-const DEFAULT_STAFF_COLORS = {
-  default: { name: 'Default', color: '#9e9e9e' },
-  blue: { name: 'Blue', color: '#2196f3' },
-  red: { name: 'Red', color: '#f44336' },
-  green: { name: 'Green', color: '#4caf50' },
-  purple: { name: 'Purple', color: '#9c27b0' },
-  orange: { name: 'Orange', color: '#ff9800' },
-  yellow: { name: 'Yellow', color: '#ffeb3b' },
-  pink: { name: 'Pink', color: '#e91e63' },
-  teal: { name: 'Teal', color: '#009688' },
-  indigo: { name: 'Indigo', color: '#3f51b5' },
-};
 
 function StaffTab() {
   const { 
@@ -100,6 +88,8 @@ function StaffTab() {
   const [openColorDialog, setOpenColorDialog] = useState(false);
   const [editingColor, setEditingColor] = useState(null);
   const [customColors, setCustomColors] = useState({});
+  const [colorTitles, setColorTitles] = useState({});
+  const [editingColorTitle, setEditingColorTitle] = useState(null);
   const nameInputRef = useRef(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -135,7 +125,7 @@ function StaffTab() {
 
   // Get all available colors (default + custom)
   const getAllColors = () => {
-    return { ...DEFAULT_STAFF_COLORS, ...customColors };
+    return { ...getAllStaffColors(), ...customColors };
   };
 
   // Color management functions
@@ -202,6 +192,34 @@ function StaffTab() {
         return newColors;
       });
     }
+  };
+
+  // Color title management functions
+  const handleEditColorTitle = (colorKey) => {
+    setEditingColorTitle(colorKey);
+  };
+
+  const handleSaveColorTitle = (colorKey, newTitle) => {
+    if (newTitle.trim()) {
+      setColorTitles(prev => ({
+        ...prev,
+        [colorKey]: newTitle.trim()
+      }));
+    }
+    setEditingColorTitle(null);
+  };
+
+  const handleCancelEditColorTitle = () => {
+    setEditingColorTitle(null);
+  };
+
+  // Get display name for a color (custom title or default)
+  const getColorDisplayName = (colorKey) => {
+    if (colorTitles[colorKey]) {
+      return colorTitles[colorKey];
+    }
+    const colorData = getAllColors()[colorKey];
+    return colorData ? colorData.name : colorKey;
   };
 
   const handleOpenDialog = (staff = null) => {
@@ -762,29 +780,78 @@ function StaffTab() {
                     />
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography variant="body2" noWrap>
-                        {color.name}
+                        {editingColorTitle === key ? (
+                          <TextField
+                            size="small"
+                            value={colorTitles[key] || color.name}
+                            onChange={(e) => setColorTitles(prev => ({ ...prev, [key]: e.target.value }))}
+                            onBlur={() => handleSaveColorTitle(key, colorTitles[key] || color.name)}
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSaveColorTitle(key, colorTitles[key] || color.name);
+                              } else if (e.key === 'Escape') {
+                                handleCancelEditColorTitle();
+                              }
+                            }}
+                            autoFocus
+                            sx={{ width: '100%' }}
+                          />
+                        ) : (
+                          getColorDisplayName(key)
+                        )}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {color.color}
                       </Typography>
                     </Box>
-                    {!DEFAULT_STAFF_COLORS[key] && (
-                      <Box>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleOpenColorDialog({ key, ...color })}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteColor(key)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Box>
-                    )}
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      {editingColorTitle === key ? (
+                        <>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handleSaveColorTitle(key, colorTitles[key] || color.name)}
+                          >
+                            ✓
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={handleCancelEditColorTitle}
+                          >
+                            ✕
+                          </IconButton>
+                        </>
+                      ) : (
+                        <>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditColorTitle(key)}
+                            title="Edit title"
+                          >
+                            <EditIcon />
+                          </IconButton>
+                          {!DEFAULT_STAFF_COLORS[key] && (
+                            <>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleOpenColorDialog({ key, ...color })}
+                                title="Edit color"
+                              >
+                                <PaletteIcon />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleDeleteColor(key)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </Box>
                   </Box>
                 </Grid>
               ))}
@@ -892,7 +959,7 @@ function StaffTab() {
                               flexShrink: 0
                             }}
                           />
-                          {color.name}
+                          {getColorDisplayName(key)}
                         </Box>
                       </MenuItem>
                     ))}

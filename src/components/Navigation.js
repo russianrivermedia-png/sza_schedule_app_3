@@ -142,6 +142,8 @@ function Navigation() {
                 horizontal: 'right',
               }}
               sx={{ mt: 1 }}
+              disableScrollLock={true}
+              disablePortal={false}
             >
               {/* User Info in Mobile Menu */}
               {user && (
@@ -237,6 +239,8 @@ function Navigation() {
                     vertical: 'top',
                     horizontal: 'left',
                   }}
+                  disableScrollLock={true}
+                  disablePortal={false}
                 >
                   {managerFeatures.map((feature) => (
                     <MenuItem

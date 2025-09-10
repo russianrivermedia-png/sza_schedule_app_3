@@ -86,6 +86,11 @@ function TourDisplay({ tours, tourColors, onTourColorChange, size = 'small' }) {
           vertical: 'top',
           horizontal: 'left',
         }}
+        disableScrollLock={true}
+        disablePortal={false}
+        MenuListProps={{
+          'aria-labelledby': 'tour-color-menu',
+        }}
       >
         {Object.entries(DEFAULT_TOUR_COLORS).map(([colorKey, colorData]) => (
           <MenuItem
