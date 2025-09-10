@@ -2156,7 +2156,7 @@ function ScheduleBuilderTab() {
              horizontal: 'right',
            }}
            disableScrollLock={true}
-           disablePortal={false}
+           disablePortal={true}
          >
                        <MenuItem onClick={() => {
               setOpenNotesDialog(true);

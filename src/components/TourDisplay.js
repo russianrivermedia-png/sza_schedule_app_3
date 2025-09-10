@@ -17,6 +17,8 @@ function TourDisplay({ tours, tourColors, onTourColorChange, size = 'small' }) {
   const [selectedTourId, setSelectedTourId] = useState(null);
 
   const handleColorClick = (event, tourId) => {
+    event.preventDefault();
+    event.stopPropagation();
     setColorMenuAnchor(event.currentTarget);
     setSelectedTourId(tourId);
   };
@@ -87,15 +89,29 @@ function TourDisplay({ tours, tourColors, onTourColorChange, size = 'small' }) {
           horizontal: 'left',
         }}
         disableScrollLock={true}
-        disablePortal={false}
+        disablePortal={true}
+        keepMounted={false}
         MenuListProps={{
           'aria-labelledby': 'tour-color-menu',
+          disablePadding: true,
+        }}
+        slotProps={{
+          paper: {
+            sx: {
+              maxHeight: '200px',
+              overflow: 'auto',
+            }
+          }
         }}
       >
         {Object.entries(DEFAULT_TOUR_COLORS).map(([colorKey, colorData]) => (
           <MenuItem
             key={colorKey}
-            onClick={() => handleColorSelect(colorKey)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleColorSelect(colorKey);
+            }}
             sx={{
               '&:hover': {
                 backgroundColor: colorData.color,
