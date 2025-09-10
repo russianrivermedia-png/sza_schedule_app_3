@@ -76,9 +76,9 @@ function ShiftCreationTab() {
       setFormData({
         name: shift.name,
         description: shift.description || '',
-        requiredRoles: shift.requiredRoles || [],
+        requiredRoles: shift.required_roles || shift.requiredRoles || [],
         tours: shift.tours || [],
-        defaultStartingTime: shift.defaultStartingTime || '',
+        defaultStartingTime: shift.default_starting_time || shift.defaultStartingTime || '',
       });
     } else {
       setEditingShift(null);
@@ -239,9 +239,9 @@ function ShiftCreationTab() {
     setFormData({
       name: shift.name,
       description: shift.description || '',
-      requiredRoles: [...shift.requiredRoles],
+      requiredRoles: [...(shift.required_roles || shift.requiredRoles || [])],
       tours: [...shift.tours],
-      defaultStartingTime: shift.defaultStartingTime || '',
+      defaultStartingTime: shift.default_starting_time || shift.defaultStartingTime || '',
     });
     setBulkMode(false);
     setEditingShift(null);

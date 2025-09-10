@@ -295,12 +295,6 @@ export function DataProvider({ children }) {
       // Dispatch data
       dispatch({ type: 'SET_STAFF', payload: staffWithCounts });
       dispatch({ type: 'SET_ROLES', payload: rolesResult.data || [] });
-      // Debug: Log shifts data to see if default_starting_time is included
-      console.log('🔍 DataContext - Raw shifts data:', shiftsResult.data);
-      if (shiftsResult.data && shiftsResult.data.length > 0) {
-        console.log('🔍 DataContext - Sample shift fields:', Object.keys(shiftsResult.data[0]));
-        console.log('🔍 DataContext - Sample shift default_starting_time:', shiftsResult.data[0].default_starting_time);
-      }
       
       dispatch({ type: 'SET_SHIFTS', payload: shiftsResult.data || [] });
       dispatch({ type: 'SET_TOURS', payload: toursResult.data || [] });

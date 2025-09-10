@@ -210,10 +210,13 @@ function ScheduleBuilderTab() {
         if (dayData && dayData.shifts) {
           normalizedScheduleData[dayKey] = {
             ...dayData,
-            shifts: dayData.shifts.map(shift => ({
-              ...shift,
-              assignedStaff: shift.assignedStaff || {}
-            }))
+            shifts: dayData.shifts.map(shift => {
+              
+              return {
+                ...shift,
+                assignedStaff: shift.assignedStaff || {}
+              };
+            })
           };
         } else {
           normalizedScheduleData[dayKey] = dayData;
@@ -262,6 +265,8 @@ function ScheduleBuilderTab() {
 
     const saveWeekSchedule = async () => {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
+    
+    
     const scheduleData = {
       days: {
         ...weekSchedule,
@@ -548,13 +553,6 @@ function ScheduleBuilderTab() {
        const shift = (shifts || []).find(s => s.id === shiftId);
        if (!shift) return null;
        
-       // Debug: Log the shift data to see what's available
-       console.log('🔍 Adding shift to schedule:', {
-         shiftId: shift.id,
-         shiftName: shift.name,
-         default_starting_time: shift.default_starting_time,
-         allShiftFields: Object.keys(shift)
-       });
        
               return {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
