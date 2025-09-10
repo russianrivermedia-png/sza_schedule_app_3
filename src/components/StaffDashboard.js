@@ -21,7 +21,11 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  useMediaQuery,
+  useTheme,
+  Stack,
+  Divider
 } from '@mui/material';
 import {
   Event as EventIcon,
@@ -40,6 +44,9 @@ function StaffDashboard() {
   const { user, getStaffMember } = useAuth();
   const { timeOffRequests, roles, schedules, staff, shifts } = useData();
   const [staffMember, setStaffMember] = useState(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [timeOffDialogOpen, setTimeOffDialogOpen] = useState(false);
   const [timeOffForm, setTimeOffForm] = useState({
     startDate: '',
@@ -338,25 +345,33 @@ function StaffDashboard() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant={isMobile ? "h5" : "h4"} gutterBottom sx={{ textAlign: isMobile ? 'center' : 'left' }}>
         Welcome, {staffMember.name}!
       </Typography>
       
-      <Grid container spacing={3}>
+      <Grid container spacing={isMobile ? 2 : 3}>
         {/* Personal Info Card */}
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: isMobile ? 'flex-start' : 'center', 
+                mb: 2,
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? 1 : 0
+              }}>
+                <Typography variant={isMobile ? "subtitle1" : "h6"}>
                   <PersonIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Personal Information
+                  {isMobile ? "Info" : "Personal Information"}
                 </Typography>
                 <Button
                   size="small"
                   startIcon={<EditIcon />}
                   onClick={handleEditInfo}
                   variant="outlined"
+                  sx={{ alignSelf: isMobile ? 'flex-start' : 'auto' }}
                 >
                   Edit
                 </Button>
@@ -396,16 +411,25 @@ function StaffDashboard() {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: isMobile ? 'flex-start' : 'center', 
+                mb: 2,
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? 1 : 0
+              }}>
+                <Typography variant={isMobile ? "subtitle1" : "h6"}>
                   Time Off Requests
                 </Typography>
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
                   onClick={() => setTimeOffDialogOpen(true)}
+                  size={isMobile ? "small" : "medium"}
+                  sx={{ alignSelf: isMobile ? 'flex-start' : 'auto' }}
                 >
-                  Request Time Off
+                  {isMobile ? "Request" : "Request Time Off"}
                 </Button>
               </Box>
               
@@ -483,32 +507,37 @@ function StaffDashboard() {
         <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant={isMobile ? "subtitle1" : "h6"} gutterBottom>
                 <EventIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Upcoming Shifts (Next 7 Days)
+                {isMobile ? "Upcoming Shifts" : "Upcoming Shifts (Next 7 Days)"}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Your scheduled shifts for the next 7 days
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: isMobile ? 'center' : 'left' }}>
+                {isMobile ? "Next 7 days" : "Your scheduled shifts for the next 7 days"}
               </Typography>
               
               {next7DaysShifts.length > 0 ? (
-                <Grid container spacing={2}>
+                <Grid container spacing={isMobile ? 1 : 2}>
                   {next7DaysShifts.map((dayInfo, index) => (
                     <Grid item xs={12} sm={6} md={4} key={index}>
-                      <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                        <Typography variant="subtitle2" gutterBottom>
+                      <Box sx={{ 
+                        p: isMobile ? 1.5 : 2, 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: 1,
+                        bgcolor: 'background.paper'
+                      }}>
+                        <Typography variant={isMobile ? "body2" : "subtitle2"} gutterBottom sx={{ fontWeight: 'medium' }}>
                           {dayInfo.dayName}, {format(dayInfo.date, 'MMM dd')}
                         </Typography>
                         {dayInfo.shifts.map((shift, shiftIndex) => (
-                          <Box key={shiftIndex} sx={{ mb: 1 }}>
-                            <Typography variant="body2">
-                              <strong>{shift.shiftName}</strong>
+                          <Box key={shiftIndex} sx={{ mb: isMobile ? 0.5 : 1 }}>
+                            <Typography variant={isMobile ? "caption" : "body2"} sx={{ fontWeight: 'medium' }}>
+                              {shift.shiftName}
                             </Typography>
-                            <Typography variant="body2" color="primary">
-                              Role: {shift.role}
+                            <Typography variant={isMobile ? "caption" : "body2"} color="primary" sx={{ display: 'block' }}>
+                              {shift.role}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              Arrival: {shift.start_time}
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: isMobile ? '0.65rem' : '0.75rem' }}>
+                              {shift.start_time}
                             </Typography>
                           </Box>
                         ))}

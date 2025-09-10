@@ -370,23 +370,6 @@ function ShiftCreationTab() {
                   </Box>
                 )}
 
-                <Box sx={{ mt: 2 }}>
-                  <Chip
-                    label={`${(shift.required_roles || shift.requiredRoles || []).length} role${(shift.required_roles || shift.requiredRoles || []).length !== 1 ? 's' : ''} required`}
-                    size="small"
-                    variant="outlined"
-                    color="secondary"
-                  />
-                  {shift.tours && shift.tours.length > 0 && (
-                    <Chip
-                      label={`${shift.tours.length} tour${shift.tours.length !== 1 ? 's' : ''} attached`}
-                      size="small"
-                      variant="outlined"
-                      color="secondary"
-                      sx={{ ml: 1 }}
-                    />
-                  )}
-                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -669,7 +652,6 @@ function ShiftCreationTab() {
                       <ListItem key={shift.id} divider>
                         <ListItemText
                           primary={shift.name}
-                          secondary={`${shift.requiredRoles.length} role(s) required`}
                         />
                       </ListItem>
                     ))}

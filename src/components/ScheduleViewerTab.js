@@ -15,12 +15,19 @@ import {
   TableRow,
   Paper,
   Tooltip,
+  useMediaQuery,
+  useTheme,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Stack,
 } from '@mui/material';
 import {
   NavigateBefore as NavigateBeforeIcon,
   NavigateNext as NavigateNextIcon,
   Today as TodayIcon,
   PictureAsPdf as PdfIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { format, startOfWeek, addDays } from 'date-fns';
@@ -62,6 +69,9 @@ function ScheduleViewerTab() {
   const [selectedWeek, setSelectedWeek] = useState(currentWeek);
   const [weekSchedule, setWeekSchedule] = useState({});
   const scheduleRef = useRef(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Get week dates
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 0 });
@@ -229,6 +239,114 @@ function ScheduleViewerTab() {
       !shift.tours || shift.tours.length === 0
     );
 
+    // Mobile layout - use cards instead of table
+    if (isMobile) {
+      return (
+        <Box>
+          {/* All shifts in mobile card format */}
+          {[...shiftsWithTours, ...shiftsWithoutTours].map((shift) => {
+            const shiftTours = getShiftTours(shift);
+            const hasNotes = shift.notes && shift.notes.trim().length > 0;
+            
+            return (
+              <Card key={shift.id} sx={{ mb: 2, p: 2 }}>
+                <Stack spacing={1.5}>
+                  {/* Header with time and shift name */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                        {shift.arrivalTime || 'TBD'}
+                      </Typography>
+                      <Typography variant="subtitle2" fontWeight="medium">
+                        {shift.name}
+                      </Typography>
+                    </Box>
+                    {hasNotes && (
+                      <Tooltip title={shift.notes} arrow placement="top">
+                        <Typography 
+                          variant="caption" 
+                          color="primary" 
+                          sx={{ 
+                            cursor: 'pointer',
+                            fontWeight: 'medium',
+                            textDecoration: 'underline'
+                          }}
+                        >
+                          📝
+                        </Typography>
+                      </Tooltip>
+                    )}
+                  </Box>
+
+                  {/* Staff assignments */}
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      Staff:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {(() => {
+                        const roleIds = shift.requiredRoles || (shift.assignedStaff ? Object.keys(shift.assignedStaff) : []);
+                        return roleIds.map(roleId => {
+                          const role = roles?.find(r => r.id === roleId);
+                          const assignedStaffId = shift.assignedStaff?.[roleId];
+                          const assignedStaff = staff?.find(s => s.id === assignedStaffId);
+                          
+                          return (
+                            <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Tooltip title={`${role?.name || 'Unknown Role'}: ${assignedStaff ? assignedStaff.name : 'Unassigned'}`} arrow placement="top">
+                                <Chip
+                                  label={assignedStaff ? assignedStaff.name.split(' ')[0] : 'Unassigned'}
+                                  size="small"
+                                  variant="filled"
+                                  sx={{
+                                    fontSize: '0.7rem',
+                                    height: 20,
+                                    bgcolor: getStaffColor(assignedStaff, shift.staffColors, assignedStaffId),
+                                    color: 'white',
+                                    fontWeight: 'medium',
+                                  }}
+                                />
+                              </Tooltip>
+                            </Box>
+                          );
+                        });
+                      })()}
+                    </Box>
+                  </Box>
+
+                  {/* Tours */}
+                  {shiftTours.length > 0 && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                        Tours:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {shiftTours.map(tour => (
+                          <Chip
+                            key={tour.id}
+                            label={tour.name}
+                            size="small"
+                            variant="outlined"
+                            sx={{ 
+                              fontSize: '0.7rem', 
+                              height: 20,
+                              bgcolor: getTourColor(tour, shift.tourColors, tour.id),
+                              color: 'white'
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                </Stack>
+              </Card>
+            );
+          })}
+        </Box>
+      );
+    }
+
+    // Desktop layout - use table format
     return (
       <Box>
         {/* Tour-based shifts in table format */}
@@ -439,43 +557,88 @@ function ScheduleViewerTab() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Schedule Viewer</Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+      {/* Header - responsive layout */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: isMobile ? 'column' : 'row',
+        justifyContent: 'space-between', 
+        alignItems: isMobile ? 'stretch' : 'center', 
+        mb: 3,
+        gap: isMobile ? 2 : 0
+      }}>
+        <Typography variant={isMobile ? "h5" : "h4"}>
+          {isMobile ? "Schedule" : "Schedule Viewer"}
+        </Typography>
+        
+        {/* Navigation buttons - responsive layout */}
+        <Box sx={{ 
+          display: 'flex', 
+          gap: isMobile ? 1 : 2,
+          flexWrap: isMobile ? 'wrap' : 'nowrap',
+          justifyContent: isMobile ? 'center' : 'flex-end'
+        }}>
+          {!isMobile && (
             <Button
               variant="contained"
-            startIcon={<PdfIcon />}
-            onClick={exportToPDF}
-            sx={{ bgcolor: '#d32f2f', '&:hover': { bgcolor: '#b71c1c' } }}
-            data-testid="export-pdf-button"
-          >
-            Export PDF
-          </Button>
+              startIcon={<PdfIcon />}
+              onClick={exportToPDF}
+              sx={{ bgcolor: '#d32f2f', '&:hover': { bgcolor: '#b71c1c' } }}
+              data-testid="export-pdf-button"
+            >
+              Export PDF
+            </Button>
+          )}
+          
           <Button
             variant="outlined"
             startIcon={<NavigateBeforeIcon />}
             onClick={() => setSelectedWeek(prev => addDays(prev, -7))}
+            size={isMobile ? "small" : "medium"}
+            sx={{ minWidth: isMobile ? 'auto' : 'auto' }}
           >
-            Previous Week
+            {isMobile ? "Prev" : "Previous Week"}
           </Button>
+          
           <Button
             variant="outlined"
             startIcon={<TodayIcon />}
             onClick={() => setSelectedWeek(new Date())}
+            size={isMobile ? "small" : "medium"}
+            sx={{ minWidth: isMobile ? 'auto' : 'auto' }}
           >
-            Current Week
+            {isMobile ? "Today" : "Current Week"}
           </Button>
+          
           <Button
             variant="outlined"
             endIcon={<NavigateNextIcon />}
             onClick={() => setSelectedWeek(prev => addDays(prev, 7))}
+            size={isMobile ? "small" : "medium"}
+            sx={{ minWidth: isMobile ? 'auto' : 'auto' }}
           >
-            Next Week
+            {isMobile ? "Next" : "Next Week"}
+          </Button>
+          
+          {isMobile && (
+            <Button
+              variant="contained"
+              startIcon={<PdfIcon />}
+              onClick={exportToPDF}
+              sx={{ 
+                bgcolor: '#d32f2f', 
+                '&:hover': { bgcolor: '#b71c1c' },
+                width: '100%',
+                mt: 1
+              }}
+              data-testid="export-pdf-button"
+            >
+              Export PDF
             </Button>
-          </Box>
+          )}
+        </Box>
       </Box>
 
-      <Typography variant="h6" sx={{ mb: 2 }}>
+      <Typography variant={isMobile ? "subtitle1" : "h6"} sx={{ mb: 2, textAlign: isMobile ? 'center' : 'left' }}>
         Week of {format(weekStart, 'MMMM d, yyyy')}
       </Typography>
 
