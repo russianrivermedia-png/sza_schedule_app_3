@@ -202,6 +202,11 @@ function StaffDashboard() {
   };
 
   const getNext7DaysShifts = () => {
+    // Safety check - return empty array if required data is not loaded
+    if (!schedules || !shifts || !roles || !staffMember) {
+      return [];
+    }
+    
     const today = new Date();
     const next7Days = [];
     
@@ -246,7 +251,7 @@ function StaffDashboard() {
                     const roleName = role ? role.name : 'Unassigned';
                     
                     // Get shift template info
-                    const shiftTemplate = shifts.find(s => s.id === shift.shiftId);
+                    const shiftTemplate = shifts && shifts.length > 0 ? shifts.find(s => s.id === shift.shiftId) : null;
                     const startTime = shiftTemplate ? shiftTemplate.start_time : 'TBD';
                     const endTime = shiftTemplate ? shiftTemplate.end_time : 'TBD';
                     
