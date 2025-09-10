@@ -29,6 +29,7 @@ function Navigation() {
     { label: 'Roles', path: '/roles' },
     { label: 'Tours', path: '/tours' },
     { label: 'Shifts', path: '/shifts' },
+    { label: 'Time Off', path: '/time-off' },
     { label: 'Accounts', path: '/accounts' },
   ];
 

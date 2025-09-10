@@ -7,6 +7,7 @@ import StaffTab from './components/StaffTab';
 import RoleCreationTab from './components/RoleCreationTab';
 import TourCreationTab from './components/TourCreationTab';
 import ShiftCreationTab from './components/ShiftCreationTab';
+import TimeOffRequestsTab from './components/TimeOffRequestsTab';
 import ScheduleBuilderTab from './components/ScheduleBuilderTab';
 import ScheduleViewerTab from './components/ScheduleViewerTab';
 import DataManagement from './components/DataManagement';
@@ -64,6 +65,11 @@ function App() {
                   <Route path="/shifts" element={
                     <ProtectedRoute requiredRole="manager">
                       <ShiftCreationTab />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/time-off" element={
+                    <ProtectedRoute requiredRole="manager">
+                      <TimeOffRequestsTab />
                     </ProtectedRoute>
                   } />
                   <Route path="/data" element={
