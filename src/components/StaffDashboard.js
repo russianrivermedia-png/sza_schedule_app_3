@@ -135,7 +135,19 @@ function StaffDashboard() {
   };
 
   const getStaffTimeOff = () => {
-    return timeOffRequests.filter(t => t.staff_id === staffMember.id);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+    
+    return timeOffRequests.filter(t => {
+      // Only show requests for this staff member
+      if (t.staff_id !== staffMember.id) return false;
+      
+      // Filter out expired requests (end date is before today)
+      const endDate = new Date(t.end_date);
+      endDate.setHours(0, 0, 0, 0);
+      
+      return endDate >= today;
+    });
   };
 
   // Helper function to check if request is within next 2 weeks
@@ -211,37 +223,40 @@ function StaffDashboard() {
           if (dayData && dayData.shifts && Array.isArray(dayData.shifts)) {
             dayData.shifts.forEach((shift) => {
               // Check if this staff member is assigned to any role in this shift
-              const isAssigned = shift.assignedStaff && 
-                Object.values(shift.assignedStaff).some(assignedStaffId => 
-                  assignedStaffId === staffMember.id
-                );
+              const assignedRoleId = shift.assignedStaff ? 
+                Object.keys(shift.assignedStaff).find(roleId => 
+                  shift.assignedStaff[roleId] === staffMember.id
+                ) : null;
               
-              if (isAssigned) {
-                // Try to match this shift to one of our next 7 days
-                next7Days.forEach(dayInfo => {
-                  // Check if this shift falls on this day
-                  if (dayKey === dayInfo.dateString) {
+              if (assignedRoleId) {
+                // Find the matching day in our next 7 days
+                const dayInfo = next7Days.find(day => day.dateString === dayKey);
+                if (dayInfo) {
+                  // Check if this shift is already added to avoid duplicates
+                  const shiftAlreadyExists = dayInfo.shifts.some(existingShift => 
+                    existingShift.id === shift.id && existingShift.shiftId === shift.shiftId
+                  );
+                  
+                  if (!shiftAlreadyExists) {
                     // Get the role name for this staff member
-                    const assignedRoleId = Object.keys(shift.assignedStaff).find(roleId => 
-                      shift.assignedStaff[roleId] === staffMember.id
-                    );
                     const role = roles.find(r => r.id === assignedRoleId);
                     const roleName = role ? role.name : 'Unassigned';
                     
                     // Get shift template info
                     const shiftTemplate = shifts && shifts.length > 0 ? shifts.find(s => s.id === shift.shiftId) : null;
                     const startTime = shiftTemplate ? shiftTemplate.start_time : 'TBD';
-                    const endTime = shiftTemplate ? shiftTemplate.end_time : 'TBD';
+                    
+                    // Use arrivalTime from shift data if available, otherwise use shift template times
+                    const arrivalTime = shift.arrivalTime || startTime;
                     
                     dayInfo.shifts.push({
                       ...shift,
                       role: roleName,
-                      start_time: startTime,
-                      end_time: endTime,
+                      start_time: arrivalTime,
                       shiftName: shiftTemplate ? shiftTemplate.name : shift.name || 'Unknown Shift'
                     });
                   }
-                });
+                }
               }
             });
           }
@@ -493,7 +508,7 @@ function StaffDashboard() {
                               Role: {shift.role}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {shift.start_time} - {shift.end_time}
+                              Arrival: {shift.start_time}
                             </Typography>
                           </Box>
                         ))}

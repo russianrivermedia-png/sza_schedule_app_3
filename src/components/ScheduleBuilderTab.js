@@ -548,6 +548,14 @@ function ScheduleBuilderTab() {
        const shift = (shifts || []).find(s => s.id === shiftId);
        if (!shift) return null;
        
+       // Debug: Log the shift data to see what's available
+       console.log('🔍 Adding shift to schedule:', {
+         shiftId: shift.id,
+         shiftName: shift.name,
+         default_starting_time: shift.default_starting_time,
+         allShiftFields: Object.keys(shift)
+       });
+       
               return {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           shiftId,
