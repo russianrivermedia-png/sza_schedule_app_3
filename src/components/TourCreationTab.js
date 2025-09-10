@@ -37,14 +37,7 @@ import {
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { tourHelpers } from '../lib/supabaseHelpers';
-
-// Default tour color options
-const DEFAULT_TOUR_COLORS = {
-  default: { name: 'Default', color: '#9e9e9e' },
-  blue: { name: 'Confirmed', color: '#2196f3' },
-  red: { name: 'Cancelled', color: '#f44336' },
-  yellow: { name: 'Open', color: '#ffeb3b' },
-};
+import { DEFAULT_TOUR_COLORS, getAllTourColors } from '../config/tourColors';
 
 function TourCreationTab() {
   const { tours, dispatch } = useData();
@@ -53,6 +46,8 @@ function TourCreationTab() {
   const [openColorDialog, setOpenColorDialog] = useState(false);
   const [editingColor, setEditingColor] = useState(null);
   const [customColors, setCustomColors] = useState({});
+  const [colorTitles, setColorTitles] = useState({});
+  const [editingColorTitle, setEditingColorTitle] = useState(null);
   const tourInputRef = useRef(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -66,7 +61,7 @@ function TourCreationTab() {
 
   // Get all available colors (default + custom)
   const getAllColors = () => {
-    return { ...DEFAULT_TOUR_COLORS, ...customColors };
+    return { ...getAllTourColors(), ...customColors };
   };
 
   // Color management functions
@@ -133,6 +128,34 @@ function TourCreationTab() {
         return newColors;
       });
     }
+  };
+
+  // Color title management functions
+  const handleEditColorTitle = (colorKey) => {
+    setEditingColorTitle(colorKey);
+  };
+
+  const handleSaveColorTitle = (colorKey, newTitle) => {
+    if (newTitle.trim()) {
+      setColorTitles(prev => ({
+        ...prev,
+        [colorKey]: newTitle.trim()
+      }));
+    }
+    setEditingColorTitle(null);
+  };
+
+  const handleCancelEditColorTitle = () => {
+    setEditingColorTitle(null);
+  };
+
+  // Get display name for a color (custom title or default)
+  const getColorDisplayName = (colorKey) => {
+    if (colorTitles[colorKey]) {
+      return colorTitles[colorKey];
+    }
+    const colorData = getAllColors()[colorKey];
+    return colorData ? colorData.name : colorKey;
   };
 
   const handleOpenDialog = (tour = null) => {
@@ -330,27 +353,76 @@ function TourCreationTab() {
                         }}
                       />
                       <ListItemText
-                        primary={colorData.name}
+                        primary={
+                          editingColorTitle === colorKey ? (
+                            <TextField
+                              size="small"
+                              value={colorTitles[colorKey] || colorData.name}
+                              onChange={(e) => setColorTitles(prev => ({ ...prev, [colorKey]: e.target.value }))}
+                              onBlur={() => handleSaveColorTitle(colorKey, colorTitles[colorKey] || colorData.name)}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveColorTitle(colorKey, colorTitles[colorKey] || colorData.name);
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEditColorTitle();
+                                }
+                              }}
+                              autoFocus
+                              sx={{ width: '100%' }}
+                            />
+                          ) : (
+                            getColorDisplayName(colorKey)
+                          )
+                        }
                         secondary={`Key: ${colorKey}`}
                       />
                     </Box>
                     <ListItemSecondaryAction>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleOpenColorDialog({ key: colorKey, ...colorData })}
-                          disabled={Object.keys(DEFAULT_TOUR_COLORS).includes(colorKey)}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteColor(colorKey)}
-                          disabled={Object.keys(DEFAULT_TOUR_COLORS).includes(colorKey)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
+                        {editingColorTitle === colorKey ? (
+                          <>
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => handleSaveColorTitle(colorKey, colorTitles[colorKey] || colorData.name)}
+                            >
+                              ✓
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={handleCancelEditColorTitle}
+                            >
+                              ✕
+                            </IconButton>
+                          </>
+                        ) : (
+                          <>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEditColorTitle(colorKey)}
+                              title="Edit title"
+                            >
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleOpenColorDialog({ key: colorKey, ...colorData })}
+                              disabled={Object.keys(DEFAULT_TOUR_COLORS).includes(colorKey)}
+                              title="Edit color"
+                            >
+                              <ColorLensIcon />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteColor(colorKey)}
+                              disabled={Object.keys(DEFAULT_TOUR_COLORS).includes(colorKey)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </>
+                        )}
                       </Box>
                     </ListItemSecondaryAction>
                   </ListItem>
@@ -399,7 +471,7 @@ function TourCreationTab() {
                           border: '1px solid #ccc',
                         }}
                       />
-                      {colorData.name}
+                      {getColorDisplayName(colorKey)}
                     </Box>
                   </MenuItem>
                 ))}

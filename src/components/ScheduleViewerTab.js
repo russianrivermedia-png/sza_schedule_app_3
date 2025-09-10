@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { format, startOfWeek, addDays } from 'date-fns';
+import { DEFAULT_TOUR_COLORS, getTourColorValue } from '../config/tourColors';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -45,20 +46,6 @@ const DEFAULT_STAFF_COLORS = {
   purple: { name: 'Purple', color: '#9c27b0' },
   orange: { name: 'Orange', color: '#ff9800' },
   yellow: { name: 'Yellow', color: '#ffeb3b' },
-  pink: { name: 'Pink', color: '#e91e63' },
-  teal: { name: 'Teal', color: '#009688' },
-  indigo: { name: 'Indigo', color: '#3f51b5' },
-};
-
-// Default tour color options (matching TourCreationTab)
-const DEFAULT_TOUR_COLORS = {
-  default: { name: 'Default', color: '#9e9e9e' },
-  blue: { name: 'Confirmed', color: '#2196f3' },
-  red: { name: 'Red', color: '#f44336' },
-  green: { name: 'Green', color: '#4caf50' },
-  purple: { name: 'Purple', color: '#9c27b0' },
-  orange: { name: 'Orange', color: '#ff9800' },
-  yellow: { name: 'Open', color: '#ffeb3b' },
   pink: { name: 'Pink', color: '#e91e63' },
   teal: { name: 'Teal', color: '#009688' },
   indigo: { name: 'Indigo', color: '#3f51b5' },
@@ -124,17 +111,7 @@ function ScheduleViewerTab() {
 
   // Helper function to get tour color value
   const getTourColor = (tour, shiftTourColors, tourId) => {
-    // First check if there's a custom color for this tour in this shift
-    if (shiftTourColors && shiftTourColors[tourId]) {
-      return shiftTourColors[tourId];
-    }
-    // Then check the tour's default color
-    if (tour && tour.default_color) {
-      const colorKey = tour.default_color;
-      return DEFAULT_TOUR_COLORS[colorKey]?.color || '#9e9e9e';
-    }
-    // Fallback to default
-    return '#9e9e9e';
+    return getTourColorValue(tour, shiftTourColors, tourId);
   };
 
   const exportToPDF = () => {
