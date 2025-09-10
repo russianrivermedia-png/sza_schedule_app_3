@@ -31,6 +31,8 @@ import {
   Collapse,
   Menu,
   ListItemIcon,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -75,6 +77,8 @@ function ScheduleBuilderTab() {
   } = useData();
   
   const { user: currentUser } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const [selectedWeek, setSelectedWeek] = useState(currentWeek);
   const [weekSchedule, setWeekSchedule] = useState({});
@@ -1740,16 +1744,6 @@ function ScheduleBuilderTab() {
                 ⚠️ This schedule is currently being edited by another user. Your changes may not be saved.
               </Alert>
             )}
-            {lastModifiedBy && lastModifiedBy !== currentUser?.id && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Last modified by another user • Version {scheduleVersion}
-              </Typography>
-            )}
-            {scheduleVersion && lastModifiedBy === currentUser?.id && (
-              <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
-                ✓ You have the latest version • Version {scheduleVersion}
-              </Typography>
-            )}
             {/* Active editor indicator */}
             {(() => {
               const weekKey = format(weekStart, 'yyyy-MM-dd');
@@ -1762,94 +1756,117 @@ function ScheduleBuilderTab() {
                     👤 {activeEditor.userName} is currently editing this schedule
                   </Typography>
                 );
-              } else if (isBeingEdited && activeEditor && activeEditor.userId === currentUser?.id) {
-                return (
-                  <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
-                    ✓ You are currently editing this schedule
-                  </Typography>
-                );
               }
               return null;
             })()}
           </Box>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button
-              variant="outlined"
-              onClick={() => setSelectedWeek(prev => addDays(prev, -7))}
-            >
-              Previous Week
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => setSelectedWeek(new Date())}
-            >
-              Current Week
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => setSelectedWeek(prev => addDays(prev, 7))}
-            >
-              Next Week
-            </Button>
-            <Tooltip title={`Auto-assign staff for the week of ${format(weekStart, 'MMMM d, yyyy')}`}>
+          <Box sx={{ 
+            display: 'flex', 
+            gap: isMobile ? 1 : 2,
+            flexWrap: isMobile ? 'wrap' : 'nowrap',
+            flexDirection: isMobile ? 'column' : 'row'
+          }}>
+            {/* Week Navigation Buttons */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: isMobile ? 0.5 : 1,
+              flexWrap: isMobile ? 'wrap' : 'nowrap',
+              width: isMobile ? '100%' : 'auto'
+            }}>
+              <Button
+                variant="outlined"
+                size={isMobile ? "small" : "medium"}
+                onClick={() => setSelectedWeek(prev => addDays(prev, -7))}
+                sx={{ 
+                  minWidth: isMobile ? 'auto' : '120px',
+                  flex: isMobile ? 1 : 'none',
+                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                }}
+              >
+                {isMobile ? '← Prev' : 'Previous Week'}
+              </Button>
+              <Button
+                variant="outlined"
+                size={isMobile ? "small" : "medium"}
+                onClick={() => setSelectedWeek(new Date())}
+                sx={{ 
+                  minWidth: isMobile ? 'auto' : '120px',
+                  flex: isMobile ? 1 : 'none',
+                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                }}
+              >
+                {isMobile ? 'Today' : 'Current Week'}
+              </Button>
+              <Button
+                variant="outlined"
+                size={isMobile ? "small" : "medium"}
+                onClick={() => setSelectedWeek(prev => addDays(prev, 7))}
+                sx={{ 
+                  minWidth: isMobile ? 'auto' : '120px',
+                  flex: isMobile ? 1 : 'none',
+                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                }}
+              >
+                {isMobile ? 'Next →' : 'Next Week'}
+              </Button>
+            </Box>
+
+            {/* Action Buttons */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: isMobile ? 0.5 : 1,
+              flexWrap: isMobile ? 'wrap' : 'nowrap',
+              width: isMobile ? '100%' : 'auto'
+            }}>
+              <Tooltip title={`Auto-assign staff for the week of ${format(weekStart, 'MMMM d, yyyy')}`}>
+                <Button
+                  variant="contained"
+                  size={isMobile ? "small" : "medium"}
+                  startIcon={!isMobile ? <AutoAssignIcon /> : null}
+                  onClick={autoAssignStaff}
+                  disabled={isScheduleLocked && lockedBy !== currentUser?.id}
+                  sx={{ 
+                    minWidth: isMobile ? 'auto' : '120px',
+                    flex: isMobile ? 1 : 'none',
+                    fontSize: isMobile ? '0.75rem' : '0.875rem'
+                  }}
+                >
+                  {isMobile ? 'Auto' : 'Auto Assign'}
+                </Button>
+              </Tooltip>
+              <Button
+                variant="outlined"
+                color="error"
+                size={isMobile ? "small" : "medium"}
+                onClick={clearWeek}
+                disabled={loading || isClearing || (isScheduleLocked && lockedBy !== currentUser?.id)}
+                sx={{ 
+                  minWidth: isMobile ? 'auto' : '120px',
+                  flex: isMobile ? 1 : 'none',
+                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                }}
+              >
+                {isMobile ? (isClearing ? 'Clearing...' : 'Clear') : (isClearing ? 'Clearing...' : 'Clear Week')}
+              </Button>
               <Button
                 variant="contained"
-                startIcon={<AutoAssignIcon />}
-                onClick={autoAssignStaff}
+                size={isMobile ? "small" : "medium"}
+                startIcon={!isMobile ? <SaveIcon /> : null}
+                onClick={saveWeekSchedule}
                 disabled={isScheduleLocked && lockedBy !== currentUser?.id}
+                sx={{ 
+                  minWidth: isMobile ? 'auto' : '120px',
+                  flex: isMobile ? 1 : 'none',
+                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                }}
               >
-                Auto Assign
+                {isMobile ? 'Save' : 'Save Schedule'}
               </Button>
-            </Tooltip>
-            <Button
-              variant="outlined"
-              color="error"
-              onClick={clearWeek}
-              disabled={loading || isClearing || (isScheduleLocked && lockedBy !== currentUser?.id)}
-            >
-              {isClearing ? 'Clearing...' : 'Clear Week'}
-            </Button>
-            <Button
-              variant="contained"
-              onClick={saveWeekSchedule}
-              disabled={isScheduleLocked && lockedBy !== currentUser?.id}
-            >
-              Save Schedule
-            </Button>
+            </Box>
           </Box>
         </Box>
 
-        {/* Performance Metrics Display */}
-        <Box sx={{ mb: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1, fontSize: '0.75rem' }}>
-          <Typography variant="caption" color="text.secondary">
-            <strong>Performance:</strong> {(staff || []).length} staff • {(roles || []).length} roles • {(shifts || []).length} shifts • 
-            Conflict cache: {conflictCache.size} entries • 
-            <span style={{ color: 'green' }}>✓ Optimized lookups enabled</span>
-          </Typography>
-        </Box>
 
-        {/* Shift Counting Mode Toggle */}
-        <Box sx={{ mb: 2, p: 1, bgcolor: 'info.50', borderRadius: 1, border: '1px solid', borderColor: 'info.200' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              <strong>Shift Counting Mode:</strong>
-            </Typography>
-            <Button
-              variant={countOnlyPastShifts ? "contained" : "outlined"}
-              size="small"
-              onClick={() => dispatch({ type: 'TOGGLE_COUNT_ONLY_PAST_SHIFTS' })}
-              sx={{ minWidth: 'auto', px: 2 }}
-            >
-              {countOnlyPastShifts ? 'Past Shifts Only (Recommended)' : 'Count All Assignments'}
-            </Button>
-            <Typography variant="caption" color="text.secondary">
-              {countOnlyPastShifts 
-                ? '✓ Only shifts that have already occurred are counted in staff totals'
-                : '⚠ All assigned shifts are counted immediately (may inflate totals)'
-              }
-            </Typography>
-          </Box>
-        </Box>
 
         <Typography variant="h6" sx={{ mb: 2 }}>
           Week of {format(weekStart, 'MMMM d, yyyy')}
