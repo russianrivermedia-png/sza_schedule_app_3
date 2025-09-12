@@ -47,6 +47,9 @@ import {
   Merge as MergeIcon,
   Save as SaveIcon,
   Send as SendIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
+  Today as TodayIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -1798,63 +1801,71 @@ function ScheduleBuilderTab() {
               return null;
             })()}
           </Box>
+          {/* Two-row button layout for desktop, single column for mobile */}
           <Box sx={{ 
             display: 'flex', 
-            gap: isMobile ? 1 : 2,
-            flexWrap: isMobile ? 'wrap' : 'nowrap',
-            flexDirection: isMobile ? 'column' : 'row'
+            flexDirection: isMobile ? 'column' : 'column',
+            gap: isMobile ? 1 : 1.5,
+            width: '100%'
           }}>
-            {/* Week Navigation Buttons */}
+            {/* Row 1: Week Navigation (Desktop: Arrow buttons, Mobile: Full text) */}
             <Box sx={{ 
               display: 'flex', 
               gap: isMobile ? 0.5 : 1,
-              flexWrap: isMobile ? 'wrap' : 'nowrap',
-              width: isMobile ? '100%' : 'auto'
+              justifyContent: isMobile ? 'stretch' : 'flex-start',
+              width: '100%'
             }}>
               <Button
                 variant="outlined"
                 size={isMobile ? "small" : "medium"}
                 onClick={() => setSelectedWeek(prev => addDays(prev, -7))}
+                startIcon={!isMobile ? <ChevronLeftIcon /> : null}
                 sx={{ 
-                  minWidth: isMobile ? 'auto' : '120px',
+                  minWidth: isMobile ? 'auto' : '60px',
                   flex: isMobile ? 1 : 'none',
-                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                  fontSize: isMobile ? '0.75rem' : '0.875rem',
+                  px: isMobile ? 1 : 1
                 }}
               >
-                {isMobile ? '← Prev' : 'Previous Week'}
+                {isMobile ? '← Prev' : ''}
               </Button>
               <Button
                 variant="outlined"
                 size={isMobile ? "small" : "medium"}
                 onClick={() => setSelectedWeek(new Date())}
+                startIcon={!isMobile ? <TodayIcon /> : null}
                 sx={{ 
-                  minWidth: isMobile ? 'auto' : '120px',
+                  minWidth: isMobile ? 'auto' : '60px',
                   flex: isMobile ? 1 : 'none',
-                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                  fontSize: isMobile ? '0.75rem' : '0.875rem',
+                  px: isMobile ? 1 : 1
                 }}
               >
-                {isMobile ? 'Today' : 'Current Week'}
+                {isMobile ? 'Today' : ''}
               </Button>
               <Button
                 variant="outlined"
                 size={isMobile ? "small" : "medium"}
                 onClick={() => setSelectedWeek(prev => addDays(prev, 7))}
+                startIcon={!isMobile ? <ChevronRightIcon /> : null}
                 sx={{ 
-                  minWidth: isMobile ? 'auto' : '120px',
+                  minWidth: isMobile ? 'auto' : '60px',
                   flex: isMobile ? 1 : 'none',
-                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                  fontSize: isMobile ? '0.75rem' : '0.875rem',
+                  px: isMobile ? 1 : 1
                 }}
               >
-                {isMobile ? 'Next →' : 'Next Week'}
+                {isMobile ? 'Next →' : ''}
               </Button>
             </Box>
 
-            {/* Action Buttons */}
+            {/* Row 2: Action Buttons */}
             <Box sx={{ 
               display: 'flex', 
               gap: isMobile ? 0.5 : 1,
               flexWrap: isMobile ? 'wrap' : 'nowrap',
-              width: isMobile ? '100%' : 'auto'
+              justifyContent: isMobile ? 'stretch' : 'flex-start',
+              width: '100%'
             }}>
               <Tooltip title={`Auto-assign staff for the week of ${format(weekStart, 'MMMM d, yyyy')}`}>
                 <Button
