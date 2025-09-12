@@ -33,7 +33,10 @@ import {
   Schedule as ScheduleIcon,
   Add as AddIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  SwapHoriz as SwapIcon,
+  HelpOutline as CoverIcon,
+  HelpOutline
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -57,6 +60,16 @@ function StaffDashboard() {
   const [editForm, setEditForm] = useState({
     email: '',
     phone: ''
+  });
+  const [swapDialogOpen, setSwapDialogOpen] = useState(false);
+  const [coverDialogOpen, setCoverDialogOpen] = useState(false);
+  const [selectedShift, setSelectedShift] = useState(null);
+  const [swapForm, setSwapForm] = useState({
+    reason: '',
+    preferredStaff: ''
+  });
+  const [coverForm, setCoverForm] = useState({
+    reason: ''
   });
 
   useEffect(() => {
@@ -95,6 +108,57 @@ function StaffDashboard() {
     } catch (error) {
       console.error('Error submitting time off request:', error);
       alert('Error submitting time off request. Please try again.');
+    }
+  };
+
+  const handleSwapClick = (shift) => {
+    setSelectedShift(shift);
+    setSwapForm({ reason: '', preferredStaff: '' });
+    setSwapDialogOpen(true);
+  };
+
+  const handleCoverClick = (shift) => {
+    setSelectedShift(shift);
+    setCoverForm({ reason: '' });
+    setCoverDialogOpen(true);
+  };
+
+  const handleSwapSubmit = async () => {
+    try {
+      // TODO: Implement swap request submission
+      console.log('Swap request:', {
+        shift: selectedShift,
+        reason: swapForm.reason,
+        preferredStaff: swapForm.preferredStaff
+      });
+      
+      setSwapDialogOpen(false);
+      setSwapForm({ reason: '', preferredStaff: '' });
+      setSelectedShift(null);
+      
+      alert('Swap request submitted! You will be notified when someone responds.');
+    } catch (error) {
+      console.error('Error submitting swap request:', error);
+      alert('Error submitting swap request. Please try again.');
+    }
+  };
+
+  const handleCoverSubmit = async () => {
+    try {
+      // TODO: Implement cover request submission
+      console.log('Cover request:', {
+        shift: selectedShift,
+        reason: coverForm.reason
+      });
+      
+      setCoverDialogOpen(false);
+      setCoverForm({ reason: '' });
+      setSelectedShift(null);
+      
+      alert('Cover request submitted! Your manager will be notified.');
+    } catch (error) {
+      console.error('Error submitting cover request:', error);
+      alert('Error submitting cover request. Please try again.');
     }
   };
 
@@ -530,15 +594,45 @@ function StaffDashboard() {
                         </Typography>
                         {dayInfo.shifts.map((shift, shiftIndex) => (
                           <Box key={shiftIndex} sx={{ mb: isMobile ? 0.5 : 1 }}>
-                            <Typography variant={isMobile ? "caption" : "body2"} sx={{ fontWeight: 'medium' }}>
-                              {shift.shiftName}
-                            </Typography>
-                            <Typography variant={isMobile ? "caption" : "body2"} color="primary" sx={{ display: 'block' }}>
-                              {shift.role}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: isMobile ? '0.65rem' : '0.75rem' }}>
-                              {shift.start_time}
-                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant={isMobile ? "caption" : "body2"} sx={{ fontWeight: 'medium' }}>
+                                  {shift.shiftName}
+                                </Typography>
+                                <Typography variant={isMobile ? "caption" : "body2"} color="primary" sx={{ display: 'block' }}>
+                                  {shift.role}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: isMobile ? '0.65rem' : '0.75rem' }}>
+                                  {shift.start_time}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleSwapClick(shift)}
+                                  sx={{ 
+                                    p: 0.5,
+                                    color: 'primary.main',
+                                    '&:hover': { bgcolor: 'primary.light', color: 'white' }
+                                  }}
+                                  title="Request Swap"
+                                >
+                                  <SwapIcon sx={{ fontSize: isMobile ? '0.8rem' : '1rem' }} />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleCoverClick(shift)}
+                                  sx={{ 
+                                    p: 0.5,
+                                    color: 'warning.main',
+                                    '&:hover': { bgcolor: 'warning.light', color: 'white' }
+                                  }}
+                                  title="Request Coverage"
+                                >
+                                  <CoverIcon sx={{ fontSize: isMobile ? '0.8rem' : '1rem' }} />
+                                </IconButton>
+                              </Box>
+                            </Box>
                           </Box>
                         ))}
                       </Box>
@@ -550,6 +644,37 @@ function StaffDashboard() {
                   No shifts scheduled for the next 7 days
                 </Typography>
               )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Coverage Section */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant={isMobile ? "subtitle1" : "h6"} gutterBottom>
+                <HelpOutline sx={{ mr: 1, verticalAlign: 'middle' }} />
+                {isMobile ? "Coverage" : "Coverage Requests"}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: isMobile ? 'center' : 'left' }}>
+                {isMobile ? "Help cover shifts" : "Shifts that need coverage from other staff members"}
+              </Typography>
+              
+              {/* Placeholder for coverage requests - will be populated later */}
+              <Box sx={{ 
+                p: 2, 
+                border: '1px dashed #e0e0e0', 
+                borderRadius: 1,
+                textAlign: 'center',
+                bgcolor: 'background.paper'
+              }}>
+                <Typography variant="body2" color="text.secondary">
+                  No coverage requests at this time
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  When staff request coverage for their shifts, they will appear here
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
@@ -680,6 +805,116 @@ function StaffDashboard() {
           <Button onClick={() => setEditInfoDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleEditInfoSubmit} variant="contained">
             Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Swap Request Dialog */}
+      <Dialog open={swapDialogOpen} onClose={() => setSwapDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Request Shift Swap</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            {selectedShift && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 1 }}>
+                  Swap Request for:
+                </Typography>
+                <Typography variant="body2">
+                  <strong>{selectedShift.shiftName}</strong> - {selectedShift.role}
+                </Typography>
+                <Typography variant="body2">
+                  {format(selectedShift.date, 'EEEE, MMMM d, yyyy')} at {selectedShift.start_time}
+                </Typography>
+              </Alert>
+            )}
+
+            <TextField
+              fullWidth
+              label="Reason for Swap"
+              value={swapForm.reason}
+              onChange={(e) => setSwapForm({ ...swapForm, reason: e.target.value })}
+              margin="normal"
+              multiline
+              rows={3}
+              placeholder="Please explain why you need to swap this shift..."
+              required
+            />
+
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Preferred Staff Member (Optional)</InputLabel>
+              <Select
+                value={swapForm.preferredStaff}
+                onChange={(e) => setSwapForm({ ...swapForm, preferredStaff: e.target.value })}
+                label="Preferred Staff Member (Optional)"
+              >
+                <MenuItem value="">
+                  <em>No preference</em>
+                </MenuItem>
+                {staff && staff.map((staffMember) => (
+                  <MenuItem key={staffMember.id} value={staffMember.id}>
+                    {staffMember.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <Typography variant="body2">
+                This swap request will be sent to all available staff members. You will be notified when someone accepts your request.
+              </Typography>
+            </Alert>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSwapDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleSwapSubmit} variant="contained" disabled={!swapForm.reason.trim()}>
+            Submit Swap Request
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Cover Request Dialog */}
+      <Dialog open={coverDialogOpen} onClose={() => setCoverDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Request Coverage</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            {selectedShift && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 1 }}>
+                  Coverage Request for:
+                </Typography>
+                <Typography variant="body2">
+                  <strong>{selectedShift.shiftName}</strong> - {selectedShift.role}
+                </Typography>
+                <Typography variant="body2">
+                  {format(selectedShift.date, 'EEEE, MMMM d, yyyy')} at {selectedShift.start_time}
+                </Typography>
+              </Alert>
+            )}
+
+            <TextField
+              fullWidth
+              label="Reason for Coverage"
+              value={coverForm.reason}
+              onChange={(e) => setCoverForm({ ...coverForm, reason: e.target.value })}
+              margin="normal"
+              multiline
+              rows={3}
+              placeholder="Please explain why you need coverage for this shift..."
+              required
+            />
+
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="body2">
+                This coverage request will be sent to your manager and all available staff members. You will be notified when someone volunteers to cover your shift.
+              </Typography>
+            </Alert>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCoverDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleCoverSubmit} variant="contained" disabled={!coverForm.reason.trim()}>
+            Submit Coverage Request
           </Button>
         </DialogActions>
       </Dialog>

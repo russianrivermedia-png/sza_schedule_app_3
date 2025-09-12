@@ -1909,7 +1909,7 @@ function ScheduleBuilderTab() {
                   fontSize: isMobile ? '0.75rem' : '0.875rem'
                 }}
               >
-                {isMobile ? (isSaving ? 'Saving...' : 'Save') : (isSaving ? 'Saving...' : 'Save Schedule')}
+                {isMobile ? (isSaving ? 'Saving...' : 'Save') : (isSaving ? 'Saving...' : 'Save')}
               </Button>
               <Button
                 variant="contained"
@@ -1924,7 +1924,7 @@ function ScheduleBuilderTab() {
                   fontSize: isMobile ? '0.75rem' : '0.875rem'
                 }}
               >
-                {isMobile ? (isPublishing ? 'Publishing...' : 'Publish') : (isPublishing ? 'Publishing...' : 'Publish Schedule')}
+                {isMobile ? (isPublishing ? 'Publishing...' : 'Publish') : (isPublishing ? 'Publishing...' : 'Publish')}
               </Button>
             </Box>
           </Box>
