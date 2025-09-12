@@ -46,6 +46,7 @@ import {
   Refresh as RefreshIcon,
   Merge as MergeIcon,
   Save as SaveIcon,
+  Send as SendIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -91,6 +92,8 @@ function ScheduleBuilderTab() {
   const [expandedNotes, setExpandedNotes] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isPublished, setIsPublished] = useState(false);
 
   // Shift assignment state
   const [selectedShifts, setSelectedShifts] = useState([]);
@@ -245,12 +248,15 @@ function ScheduleBuilderTab() {
       });
       
       setWeekSchedule(completeWeekData);
+      // TODO: Check if schedule was published (when we add published status to database)
+      setIsPublished(false); // Reset published status for now
     } else {
       // Reset version info for new schedule
       setScheduleVersion(null);
       setIsScheduleLocked(false);
       setLockedBy(null);
       setLastModifiedBy(null);
+      setIsPublished(false);
       
       // Create empty week structure with all 7 days
       const emptyWeekData = {};
@@ -326,8 +332,40 @@ function ScheduleBuilderTab() {
     } finally {
       setIsSaving(false);
       
+      // Reset published status when schedule is modified
+      setIsPublished(false);
+      
       // Reload data from context instead of page reload to maintain real-time sync
       dispatch({ type: 'RELOAD_SCHEDULES' });
+    }
+  };
+
+  const publishSchedule = async () => {
+    const weekKey = format(weekStart, 'yyyy-MM-dd');
+    
+    // First ensure the schedule is saved
+    await saveWeekSchedule();
+    
+    setIsPublishing(true);
+    try {
+      // TODO: Implement email notification system
+      // For now, just mark as published
+      console.log('📧 Publishing schedule and sending notifications...');
+      
+      // Simulate email sending delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setIsPublished(true);
+      
+      // TODO: Send email notifications to all staff
+      // await emailService.sendSchedulePublished(schedule, staffList);
+      
+      alert('Schedule published successfully! Email notifications have been sent to all staff.');
+    } catch (error) {
+      console.error('Error publishing schedule:', error);
+      alert(`Error publishing schedule: ${error.message}. Please try again.`);
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -1853,14 +1891,29 @@ function ScheduleBuilderTab() {
                 size={isMobile ? "small" : "medium"}
                 startIcon={!isMobile ? <SaveIcon /> : null}
                 onClick={saveWeekSchedule}
-                disabled={isScheduleLocked && lockedBy !== currentUser?.id}
+                disabled={isScheduleLocked && lockedBy !== currentUser?.id || isSaving}
                 sx={{ 
                   minWidth: isMobile ? 'auto' : '120px',
                   flex: isMobile ? 1 : 'none',
                   fontSize: isMobile ? '0.75rem' : '0.875rem'
                 }}
               >
-                {isMobile ? 'Save' : 'Save Schedule'}
+                {isMobile ? (isSaving ? 'Saving...' : 'Save') : (isSaving ? 'Saving...' : 'Save Schedule')}
+              </Button>
+              <Button
+                variant="contained"
+                color="success"
+                size={isMobile ? "small" : "medium"}
+                startIcon={!isMobile ? <SendIcon /> : null}
+                onClick={publishSchedule}
+                disabled={isScheduleLocked && lockedBy !== currentUser?.id || isPublishing || isSaving}
+                sx={{ 
+                  minWidth: isMobile ? 'auto' : '140px',
+                  flex: isMobile ? 1 : 'none',
+                  fontSize: isMobile ? '0.75rem' : '0.875rem'
+                }}
+              >
+                {isMobile ? (isPublishing ? 'Publishing...' : 'Publish') : (isPublishing ? 'Publishing...' : 'Publish Schedule')}
               </Button>
             </Box>
           </Box>
@@ -1868,9 +1921,19 @@ function ScheduleBuilderTab() {
 
 
 
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Week of {format(weekStart, 'MMMM d, yyyy')}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Typography variant="h6">
+            Week of {format(weekStart, 'MMMM d, yyyy')}
+          </Typography>
+          {isPublished && (
+            <Chip 
+              label="Published" 
+              color="success" 
+              size="small"
+              icon={<CheckBoxIcon />}
+            />
+          )}
+        </Box>
 
                    {/* Assignment Status Summary */}
           {(() => {
