@@ -50,6 +50,9 @@ import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   Today as TodayIcon,
+  ContentCopy as CopyIcon,
+  SaveAlt as SaveAltIcon,
+  LibraryBooks as TemplateIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -1081,6 +1084,74 @@ function ScheduleBuilderTab() {
     }));
   };
 
+  // Template management
+  const [templates, setTemplates] = useState(() => {
+    const saved = localStorage.getItem('scheduleTemplates');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [templateMenuAnchor, setTemplateMenuAnchor] = useState(null);
+  const [selectedDayForTemplate, setSelectedDayForTemplate] = useState(null);
+
+  const saveDayAsTemplate = (day, dayIndex) => {
+    const dayKey = format(day, 'yyyy-MM-dd');
+    const daySchedule = weekSchedule[dayKey];
+    
+    if (!daySchedule || !daySchedule.shifts || daySchedule.shifts.length === 0) {
+      alert('No shifts found on this day to save as template.');
+      return;
+    }
+
+    const templateName = prompt('Enter a name for this template:');
+    if (!templateName || templateName.trim() === '') {
+      return;
+    }
+
+    // Create template without staff assignments
+    const template = {
+      id: Date.now(),
+      name: templateName.trim(),
+      shifts: daySchedule.shifts.map(shift => ({
+        ...shift,
+        assignedStaff: {}, // Clear all staff assignments
+        staffColors: {}, // Clear staff colors
+        notes: '' // Clear notes
+      })),
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedTemplates = [...templates, template];
+    setTemplates(updatedTemplates);
+    localStorage.setItem('scheduleTemplates', JSON.stringify(updatedTemplates));
+    
+    alert(`Template "${templateName}" saved successfully!`);
+  };
+
+  const loadTemplate = (template, day) => {
+    const dayKey = format(day, 'yyyy-MM-dd');
+    const currentDaySchedule = weekSchedule[dayKey] || { shifts: [] };
+    
+    const updatedDay = {
+      ...currentDaySchedule,
+      shifts: [...currentDaySchedule.shifts, ...template.shifts]
+    };
+
+    setWeekSchedule(prev => ({
+      ...prev,
+      [dayKey]: updatedDay
+    }));
+
+    setTemplateMenuAnchor(null);
+    alert(`Added ${template.shifts.length} shift(s) from template "${template.name}". Staff assignments have been cleared.`);
+  };
+
+  const deleteTemplate = (templateId) => {
+    if (window.confirm('Are you sure you want to delete this template?')) {
+      const updatedTemplates = templates.filter(t => t.id !== templateId);
+      setTemplates(updatedTemplates);
+      localStorage.setItem('scheduleTemplates', JSON.stringify(updatedTemplates));
+    }
+  };
+
   const clearWeek = async () => {
     if (!window.confirm('Are you sure you want to clear all assignments for this week? This action cannot be undone.')) {
       return;
@@ -2001,7 +2072,34 @@ function ScheduleBuilderTab() {
                       <Typography variant="h6">
                         {dayOfWeek} - {format(day, 'MMM d')}
                       </Typography>
-                                                       <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Button
+                          size="small"
+                          startIcon={<TemplateIcon />}
+                          onClick={(e) => {
+                            setSelectedDayForTemplate(day);
+                            setTemplateMenuAnchor(e.currentTarget);
+                          }}
+                          variant="outlined"
+                          sx={{ 
+                            fontSize: isMobile ? '0.75rem' : '0.875rem',
+                            px: isMobile ? 1 : 1.5
+                          }}
+                        >
+                          Templates
+                        </Button>
+                        <Button
+                          size="small"
+                          startIcon={<SaveAltIcon />}
+                          onClick={() => saveDayAsTemplate(day, dayIndex)}
+                          variant="outlined"
+                          sx={{ 
+                            fontSize: isMobile ? '0.75rem' : '0.875rem',
+                            px: isMobile ? 1 : 1.5
+                          }}
+                        >
+                          {isMobile ? 'Save' : 'Save Template'}
+                        </Button>
                       <Button
                         size="small"
                                 startIcon={<AddCircleIcon />}
@@ -2010,7 +2108,7 @@ function ScheduleBuilderTab() {
                           setOpenShiftDialog(true);
                         }}
                       >
-                                Add Shifts
+                          {isMobile ? 'Add' : 'Add Shifts'}
                       </Button>
                             </Box>
                     </Box>
@@ -2308,6 +2406,62 @@ function ScheduleBuilderTab() {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Template Selection Menu */}
+        <Menu
+          anchorEl={templateMenuAnchor}
+          open={Boolean(templateMenuAnchor)}
+          onClose={() => setTemplateMenuAnchor(null)}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'left',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'left',
+          }}
+          disableScrollLock={true}
+          disablePortal={true}
+        >
+          {templates.length === 0 ? (
+            <MenuItem disabled>
+              <Typography variant="body2" color="text.secondary">
+                No templates saved yet
+              </Typography>
+            </MenuItem>
+          ) : (
+            templates.map((template) => (
+              <MenuItem
+                key={template.id}
+                onClick={() => {
+                  if (selectedDayForTemplate) {
+                    loadTemplate(template, selectedDayForTemplate);
+                  }
+                }}
+                sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                    {template.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {template.shifts.length} shift(s) • {format(new Date(template.createdAt), 'MMM d, yyyy')}
+                  </Typography>
+                </Box>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteTemplate(template.id);
+                  }}
+                  sx={{ ml: 1 }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </MenuItem>
+            ))
+          )}
+         </Menu>
       </Box>
     </DndProvider>
   );
