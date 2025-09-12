@@ -40,7 +40,7 @@ import {
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { timeOffHelpers, staffHelpers } from '../lib/supabaseHelpers';
+import { timeOffHelpers, staffHelpers, scheduleHelpers } from '../lib/supabaseHelpers';
 import { format, startOfWeek, addDays } from 'date-fns';
 
 function StaffDashboard() {
@@ -71,6 +71,273 @@ function StaffDashboard() {
   const [coverForm, setCoverForm] = useState({
     reason: ''
   });
+  const [coverageRequests, setCoverageRequests] = useState([]);
+
+  // Helper function to check if a request has expired
+  const isRequestExpired = (request) => {
+    const today = new Date();
+    const requestDate = new Date(request.date);
+    
+    // Set to end of day for comparison
+    const endOfToday = new Date(today);
+    endOfToday.setHours(23, 59, 59, 999);
+    
+    return requestDate < endOfToday;
+  };
+
+  // Helper function to get active (non-expired) requests
+  const getActiveRequests = () => {
+    return coverageRequests.filter(request => 
+      !isRequestExpired(request) && request.status === 'pending'
+    );
+  };
+
+  // Helper function to calculate current week shifts for a staff member
+  const getCurrentWeekShifts = (staffId, targetDate) => {
+    if (!schedules || !staffId || !targetDate) return 0;
+    
+    // Get the week start for the target date
+    const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 }); // Monday
+    const weekEnd = addDays(weekStart, 6); // Sunday
+    
+    let currentWeekShifts = 0;
+    
+    // Count shifts across all schedules for this week
+    schedules.forEach(schedule => {
+      if (schedule.days && typeof schedule.days === 'object') {
+        Object.keys(schedule.days).forEach(dayKey => {
+          // Skip metadata keys
+          if (dayKey === 'week_key' || dayKey === 'week_start') return;
+          
+          const dayDate = new Date(dayKey);
+          // Check if this day is within the target week
+          if (dayDate >= weekStart && dayDate <= weekEnd) {
+            const dayData = schedule.days[dayKey];
+            if (dayData && dayData.shifts && Array.isArray(dayData.shifts)) {
+              dayData.shifts.forEach(shift => {
+                if (shift.assignedStaff) {
+                  // Check if this staff member is assigned to any role in this shift
+                  const isAssigned = Object.values(shift.assignedStaff).includes(staffId);
+                  if (isAssigned) {
+                    currentWeekShifts++;
+                  }
+                }
+              });
+            }
+          }
+        });
+      }
+    });
+    
+    return currentWeekShifts;
+  };
+
+  // Helper function to check if staff member is already scheduled on a given date
+  const isStaffScheduledOnDate = (staffId, date) => {
+    if (!schedules || !staffId || !date) return false;
+    
+    const dateString = format(date, 'yyyy-MM-dd');
+    
+    return schedules.some(schedule => {
+      if (schedule.days && typeof schedule.days === 'object') {
+        const dayData = schedule.days[dateString];
+        if (dayData && dayData.shifts && Array.isArray(dayData.shifts)) {
+          return dayData.shifts.some(shift => {
+            if (shift.assignedStaff) {
+              return Object.values(shift.assignedStaff).includes(staffId);
+            }
+            return false;
+          });
+        }
+      }
+      return false;
+    });
+  };
+
+  // Helper function to check if staff member is qualified for a role
+  const isStaffQualifiedForRole = (staffId, roleName) => {
+    if (!staff || !staffId || !roleName) return false;
+    
+    const staffMember = staff.find(s => s.id === staffId);
+    if (!staffMember || !staffMember.roles) return false;
+    
+    return staffMember.roles.includes(roleName);
+  };
+
+  const handleAcceptRequest = async (requestId) => {
+    const request = coverageRequests.find(r => r.id === requestId);
+    if (!request) return;
+
+    // For COVER requests: Check if current staff member is already scheduled on that date
+    if (request.type === 'cover' && isStaffScheduledOnDate(staffMember.id, request.date)) {
+      alert(`You are already scheduled on ${format(request.date, 'MMM dd, yyyy')}. You cannot cover this shift.`);
+      return;
+    }
+
+    // For SWAP requests: Check if current staff member is NOT scheduled on that date
+    if (request.type === 'swap' && !isStaffScheduledOnDate(staffMember.id, request.date)) {
+      alert(`You are not scheduled on ${format(request.date, 'MMM dd, yyyy')}. You can only swap shifts you are already assigned to.`);
+      return;
+    }
+
+    // Check if current staff member is qualified for the role
+    if (!isStaffQualifiedForRole(staffMember.id, request.role)) {
+      alert(`You are not qualified for the role "${request.role}". You cannot ${request.type === 'cover' ? 'cover' : 'swap'} this shift.`);
+      return;
+    }
+
+    // For COVER requests: Check if accepting would exceed target shifts for the week
+    // Note: Swaps are 1:1 exchanges on the same day, so no target shifts check needed
+    if (request.type === 'cover') {
+      const currentWeekShifts = getCurrentWeekShifts(staffMember.id, request.date);
+      const targetShifts = staffMember.target_shifts || staffMember.targetShifts || 5;
+      
+      if (currentWeekShifts >= targetShifts) {
+        alert(`You have already reached your target shifts for this week (${currentWeekShifts}/${targetShifts}). You cannot cover additional shifts.`);
+        return;
+      }
+    }
+    
+    // For SWAP requests: No target shifts check needed since it's a 1:1 exchange
+    // Both staff members keep the same total number of shifts for the week
+
+    try {
+      if (request.type === 'swap') {
+        // For swaps, we need to find both shifts and swap the assignments
+        await handleShiftSwap(request);
+      } else {
+        // For covers, we need to assign the current staff member to the shift
+        await handleShiftCover(request);
+      }
+
+      // Update the request status
+      setCoverageRequests(prev => 
+        prev.map(r => 
+          r.id === requestId 
+            ? { ...r, status: 'accepted', acceptedBy: staffMember.name }
+            : r
+        )
+      );
+
+      const actionText = request.type === 'cover' ? 'cover' : 'swap';
+      alert(`You have accepted the ${request.type} request for ${request.shiftName} on ${format(request.date, 'MMM dd, yyyy')}. The schedule has been updated.`);
+      
+      // Refresh the page to show updated data
+      window.location.reload();
+    } catch (error) {
+      console.error('Error updating shift assignment:', error);
+      alert('Error updating shift assignment. Please try again.');
+    }
+  };
+
+  const handleDeclineRequest = (requestId) => {
+    setCoverageRequests(prev => 
+      prev.map(r => 
+        r.id === requestId 
+          ? { ...r, status: 'declined' }
+          : r
+      )
+    );
+  };
+
+  const handleShiftSwap = async (request) => {
+    // Find the requester's shift on the same date
+    const requesterShift = findStaffShiftOnDate(request.requesterId, request.date);
+    if (!requesterShift) {
+      throw new Error('Could not find requester\'s shift to swap');
+    }
+
+    // Find the current staff member's shift on the same date
+    const currentStaffShift = findStaffShiftOnDate(staffMember.id, request.date);
+    if (!currentStaffShift) {
+      throw new Error('Could not find your shift to swap');
+    }
+
+    // Get the date string for the database
+    const dateString = format(request.date, 'yyyy-MM-dd');
+
+    // Call the database function to swap shifts
+    await scheduleHelpers.swapShifts(
+      requesterShift.scheduleId,
+      dateString,
+      requesterShift.id,
+      requesterShift.roleId,
+      currentStaffShift.id,
+      currentStaffShift.roleId,
+      request.requesterId,
+      staffMember.id
+    );
+  };
+
+  const handleShiftCover = async (request) => {
+    // Find the shift that needs coverage
+    const shiftToCover = findShiftById(request.shiftId, request.date);
+    if (!shiftToCover) {
+      throw new Error('Could not find shift to cover');
+    }
+
+    // Find the role ID for the role name
+    const role = roles.find(r => r.name === request.role);
+    if (!role) {
+      throw new Error('Could not find role information');
+    }
+
+    // Get the date string for the database
+    const dateString = format(request.date, 'yyyy-MM-dd');
+
+    // Call the database function to cover the shift
+    await scheduleHelpers.coverShift(
+      shiftToCover.scheduleId,
+      dateString,
+      request.shiftId,
+      role.id,
+      staffMember.id
+    );
+  };
+
+  const findStaffShiftOnDate = (staffId, date) => {
+    if (!schedules || !staffId || !date) return null;
+    
+    const dateString = format(date, 'yyyy-MM-dd');
+    
+    for (const schedule of schedules) {
+      if (schedule.days && typeof schedule.days === 'object') {
+        const dayData = schedule.days[dateString];
+        if (dayData && dayData.shifts && Array.isArray(dayData.shifts)) {
+          for (const shift of dayData.shifts) {
+            if (shift.assignedStaff) {
+              const assignedRoleId = Object.keys(shift.assignedStaff).find(roleId => 
+                shift.assignedStaff[roleId] === staffId
+              );
+              if (assignedRoleId) {
+                return { ...shift, roleId: assignedRoleId, scheduleId: schedule.id };
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  const findShiftById = (shiftId, date) => {
+    if (!schedules || !shiftId || !date) return null;
+    
+    const dateString = format(date, 'yyyy-MM-dd');
+    
+    for (const schedule of schedules) {
+      if (schedule.days && typeof schedule.days === 'object') {
+        const dayData = schedule.days[dateString];
+        if (dayData && dayData.shifts && Array.isArray(dayData.shifts)) {
+          const shift = dayData.shifts.find(s => s.id === shiftId);
+          if (shift) {
+            return { ...shift, scheduleId: schedule.id };
+          }
+        }
+      }
+    }
+    return null;
+  };
 
   useEffect(() => {
     const loadStaffData = async () => {
@@ -84,6 +351,23 @@ function StaffDashboard() {
     };
     loadStaffData();
   }, [user]);
+
+  // Clean up expired requests periodically
+  useEffect(() => {
+    const cleanupExpiredRequests = () => {
+      setCoverageRequests(prev => 
+        prev.filter(request => !isRequestExpired(request))
+      );
+    };
+
+    // Clean up immediately
+    cleanupExpiredRequests();
+
+    // Set up interval to clean up every hour
+    const interval = setInterval(cleanupExpiredRequests, 60 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
 
   const handleTimeOffSubmit = async () => {
@@ -111,26 +395,39 @@ function StaffDashboard() {
     }
   };
 
-  const handleSwapClick = (shift) => {
-    setSelectedShift(shift);
+  const handleSwapClick = (shift, dayInfo) => {
+    setSelectedShift({ ...shift, date: dayInfo.date });
     setSwapForm({ reason: '', preferredStaff: '' });
     setSwapDialogOpen(true);
   };
 
-  const handleCoverClick = (shift) => {
-    setSelectedShift(shift);
+  const handleCoverClick = (shift, dayInfo) => {
+    setSelectedShift({ ...shift, date: dayInfo.date });
     setCoverForm({ reason: '' });
     setCoverDialogOpen(true);
   };
 
   const handleSwapSubmit = async () => {
     try {
-      // TODO: Implement swap request submission
-      console.log('Swap request:', {
-        shift: selectedShift,
+      // For now, just show a success message and add to local state
+      // TODO: Implement actual database submission
+      const newSwapRequest = {
+        id: Date.now(), // Temporary ID
+        requester: staffMember.name,
+        requesterId: staffMember.id,
+        shiftName: selectedShift.shiftName,
+        shiftId: selectedShift.id,
+        role: selectedShift.role,
+        date: selectedShift.date,
+        time: selectedShift.start_time,
         reason: swapForm.reason,
-        preferredStaff: swapForm.preferredStaff
-      });
+        preferredStaff: swapForm.preferredStaff,
+        status: 'pending',
+        type: 'swap',
+        createdAt: new Date()
+      };
+      
+      setCoverageRequests(prev => [newSwapRequest, ...prev]);
       
       setSwapDialogOpen(false);
       setSwapForm({ reason: '', preferredStaff: '' });
@@ -145,11 +442,24 @@ function StaffDashboard() {
 
   const handleCoverSubmit = async () => {
     try {
-      // TODO: Implement cover request submission
-      console.log('Cover request:', {
-        shift: selectedShift,
-        reason: coverForm.reason
-      });
+      // For now, just show a success message and add to local state
+      // TODO: Implement actual database submission
+      const newCoverRequest = {
+        id: Date.now(), // Temporary ID
+        requester: staffMember.name,
+        requesterId: staffMember.id,
+        shiftName: selectedShift.shiftName,
+        shiftId: selectedShift.id,
+        role: selectedShift.role,
+        date: selectedShift.date,
+        time: selectedShift.start_time,
+        reason: coverForm.reason,
+        status: 'pending',
+        type: 'cover',
+        createdAt: new Date()
+      };
+      
+      setCoverageRequests(prev => [newCoverRequest, ...prev]);
       
       setCoverDialogOpen(false);
       setCoverForm({ reason: '' });
@@ -609,7 +919,7 @@ function StaffDashboard() {
                               <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleSwapClick(shift)}
+                                  onClick={() => handleSwapClick(shift, dayInfo)}
                                   sx={{ 
                                     p: 0.5,
                                     color: 'primary.main',
@@ -621,7 +931,7 @@ function StaffDashboard() {
                                 </IconButton>
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleCoverClick(shift)}
+                                  onClick={() => handleCoverClick(shift, dayInfo)}
                                   sx={{ 
                                     p: 0.5,
                                     color: 'warning.main',
@@ -657,24 +967,153 @@ function StaffDashboard() {
                 {isMobile ? "Coverage" : "Coverage Requests"}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: isMobile ? 'center' : 'left' }}>
-                {isMobile ? "Help cover shifts" : "Shifts that need coverage from other staff members"}
+                {isMobile ? "Help with shifts" : "Cover requests (cover for someone) and Swap requests (trade shifts)"}
               </Typography>
               
-              {/* Placeholder for coverage requests - will be populated later */}
-              <Box sx={{ 
-                p: 2, 
-                border: '1px dashed #e0e0e0', 
-                borderRadius: 1,
-                textAlign: 'center',
-                bgcolor: 'background.paper'
-              }}>
-                <Typography variant="body2" color="text.secondary">
-                  No coverage requests at this time
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                  When staff request coverage for their shifts, they will appear here
-                </Typography>
-              </Box>
+              {getActiveRequests().length > 0 ? (
+                <Grid container spacing={isMobile ? 1 : 2}>
+                  {getActiveRequests().map((request) => (
+                    <Grid item xs={12} sm={6} md={4} key={request.id}>
+                      <Box sx={{ 
+                        p: isMobile ? 1.5 : 2, 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: 1,
+                        bgcolor: 'background.paper'
+                      }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant={isMobile ? "body2" : "subtitle2"} sx={{ fontWeight: 'medium' }}>
+                              {request.shiftName}
+                            </Typography>
+                            <Typography variant={isMobile ? "caption" : "body2"} color="primary">
+                              {request.role}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              {format(request.date, 'MMM dd')} at {request.time}
+                            </Typography>
+                            {/* Show expiration warning if request is today */}
+                            {(() => {
+                              const today = new Date();
+                              const requestDate = new Date(request.date);
+                              const isToday = requestDate.toDateString() === today.toDateString();
+                              const isTomorrow = requestDate.toDateString() === new Date(today.getTime() + 24 * 60 * 60 * 1000).toDateString();
+                              
+                              if (isToday) {
+                                return (
+                                  <Typography variant="caption" color="error" sx={{ display: 'block', fontWeight: 'medium' }}>
+                                    ⚠️ Expires today!
+                                  </Typography>
+                                );
+                              } else if (isTomorrow) {
+                                return (
+                                  <Typography variant="caption" color="warning.main" sx={{ display: 'block', fontWeight: 'medium' }}>
+                                    ⏰ Expires tomorrow
+                                  </Typography>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </Box>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                            <Chip 
+                              label={request.type === 'cover' ? 'Cover' : 'Swap'} 
+                              size="small" 
+                              color={request.type === 'cover' ? 'warning' : 'primary'}
+                            />
+                            {/* Show days until expiration */}
+                            {(() => {
+                              const today = new Date();
+                              const requestDate = new Date(request.date);
+                              const daysUntil = Math.ceil((requestDate - today) / (1000 * 60 * 60 * 24));
+                              
+                              if (daysUntil === 0) {
+                                return (
+                                  <Typography variant="caption" color="error" sx={{ fontSize: '0.65rem' }}>
+                                    Today
+                                  </Typography>
+                                );
+                              } else if (daysUntil === 1) {
+                                return (
+                                  <Typography variant="caption" color="warning.main" sx={{ fontSize: '0.65rem' }}>
+                                    Tomorrow
+                                  </Typography>
+                                );
+                              } else if (daysUntil <= 3) {
+                                return (
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                                    {daysUntil} days
+                                  </Typography>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </Box>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                          Requested by: {request.requester}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                          Reason: {request.reason}
+                        </Typography>
+                        
+                        {request.status === 'pending' ? (
+                          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                            <Button 
+                              size="small" 
+                              variant="contained" 
+                              color="success"
+                              onClick={() => handleAcceptRequest(request.id)}
+                            >
+                              Accept
+                            </Button>
+                            <Button 
+                              size="small" 
+                              variant="outlined" 
+                              color="error"
+                              onClick={() => handleDeclineRequest(request.id)}
+                            >
+                              Decline
+                            </Button>
+                          </Box>
+                        ) : request.status === 'accepted' ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                            <Chip 
+                              label={`Accepted by ${request.acceptedBy}`} 
+                              size="small" 
+                              color="success" 
+                              variant="outlined"
+                            />
+                          </Box>
+                        ) : request.status === 'declined' ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                            <Chip 
+                              label="Declined" 
+                              size="small" 
+                              color="error" 
+                              variant="outlined"
+                            />
+                          </Box>
+                        ) : null}
+                      </Box>
+                    </Grid>
+                  ))}
+                </Grid>
+              ) : (
+                <Box sx={{ 
+                  p: 2, 
+                  border: '1px dashed #e0e0e0', 
+                  borderRadius: 1,
+                  textAlign: 'center',
+                  bgcolor: 'background.paper'
+                }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No active coverage requests
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                    When staff request coverage for their shifts, they will appear here. Requests expire after the shift date passes.
+                  </Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -858,9 +1297,20 @@ function StaffDashboard() {
               </Select>
             </FormControl>
 
-            <Alert severity="warning" sx={{ mt: 2 }}>
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 1 }}>
+                Swap vs Cover:
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                • <strong>Swap:</strong> Trade your shift with someone else (both of you work, just different shifts)
+              </Typography>
               <Typography variant="body2">
-                This swap request will be sent to all available staff members. You will be notified when someone accepts your request.
+                • <strong>Cover:</strong> Someone covers your shift (you get the day off, they work)
+              </Typography>
+            </Alert>
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              <Typography variant="body2">
+                This swap request will be sent to staff who are already scheduled on this date. You will be notified when someone accepts your request.
               </Typography>
             </Alert>
           </Box>
@@ -905,8 +1355,14 @@ function StaffDashboard() {
             />
 
             <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 1 }}>
+                Cover Request:
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                • Someone will cover your shift (you get the day off, they work)
+              </Typography>
               <Typography variant="body2">
-                This coverage request will be sent to your manager and all available staff members. You will be notified when someone volunteers to cover your shift.
+                • This request will be sent to your manager and all available staff members
               </Typography>
             </Alert>
           </Box>

@@ -223,8 +223,8 @@ function ScheduleBuilderTab() {
             shifts: dayData.shifts.map(shift => {
               
               return {
-                ...shift,
-                assignedStaff: shift.assignedStaff || {}
+              ...shift,
+              assignedStaff: shift.assignedStaff || {}
               };
             })
           };
@@ -303,7 +303,7 @@ function ScheduleBuilderTab() {
         // Update local version
         setScheduleVersion(updatedSchedule.version);
         setLastModifiedBy(updatedSchedule.last_modified_by);
-      } else {
+    } else {
         // Create new schedule
         const newSchedule = await scheduleHelpers.add({
           ...scheduleData,
@@ -330,7 +330,7 @@ function ScheduleBuilderTab() {
       } else if (error.message.includes('currently being edited')) {
         alert('This schedule is currently being edited by another user. Please try again in a few moments.');
       } else {
-        alert(`Error saving schedule: ${error.message}. Please try again.`);
+      alert(`Error saving schedule: ${error.message}. Please try again.`);
       }
     } finally {
       setIsSaving(false);
@@ -507,13 +507,13 @@ function ScheduleBuilderTab() {
       // Fallback to cached data if database call fails
       const cachedTimeOffConflicts = getTimeOffByStaffId(staffId);
       const hasTimeOff = cachedTimeOffConflicts.some(t => {
-        const startDate = new Date(t.start_date);
-        const endDate = new Date(t.end_date);
-        const dayDate = new Date(day);
-        return dayDate >= startDate && dayDate <= endDate && t.status === 'approved';
-      });
-      if (hasTimeOff) {
-        conflicts.push('Has approved time off on this day');
+      const startDate = new Date(t.start_date);
+      const endDate = new Date(t.end_date);
+      const dayDate = new Date(day);
+      return dayDate >= startDate && dayDate <= endDate && t.status === 'approved';
+    });
+    if (hasTimeOff) {
+      conflicts.push('Has approved time off on this day');
       }
     }
 
@@ -613,7 +613,7 @@ function ScheduleBuilderTab() {
          }
        }
        
-       return {
+              return {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           shiftId,
           name: shift.name,
@@ -1197,7 +1197,7 @@ function ScheduleBuilderTab() {
       return;
     }
 
-    // Pre-load time off conflicts for the entire week to avoid repeated async calls
+      // Pre-load time off conflicts for the entire week to avoid repeated async calls
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     const weekEndDate = addDays(weekStart, 6);
     
@@ -1248,17 +1248,17 @@ function ScheduleBuilderTab() {
 
     // Count assignments from the current week's schedule data (not database)
     // This ensures we only count assignments from the week being processed
-    Object.values(newWeekSchedule).forEach(day => {
-      if (day.shifts) {
-        day.shifts.forEach(shift => {
-          Object.values(shift.assignedStaff).forEach(staffId => {
-            if (staffId) {
-              weeklyStaffAssignments.set(staffId, (weeklyStaffAssignments.get(staffId) || 0) + 1);
-            }
-          });
+        Object.values(newWeekSchedule).forEach(day => {
+          if (day.shifts) {
+            day.shifts.forEach(shift => {
+              Object.values(shift.assignedStaff).forEach(staffId => {
+                if (staffId) {
+                  weeklyStaffAssignments.set(staffId, (weeklyStaffAssignments.get(staffId) || 0) + 1);
+                }
+              });
+            });
+          }
         });
-      }
-    });
     
     console.log('🔍 Auto-assign: Weekly staff assignments from current week schedule:', Object.fromEntries(weeklyStaffAssignments));
     
@@ -1552,9 +1552,9 @@ function ScheduleBuilderTab() {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" fontWeight="bold">
-                          {shift.name}
-                        </Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {shift.name}
+                      </Typography>
                         {shift.isTeamEvent && (
                           <Chip
                             label="Team Event"
@@ -1778,7 +1778,7 @@ function ScheduleBuilderTab() {
       <Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box>
-            <Typography variant="h4">Schedule Builder</Typography>
+          <Typography variant="h4">Schedule Builder</Typography>
             {/* Multi-device collaboration indicators */}
             {isScheduleLocked && lockedBy && lockedBy !== currentUser?.id && (
               <Alert severity="warning" sx={{ mt: 1, mb: 1 }}>
@@ -1815,10 +1815,10 @@ function ScheduleBuilderTab() {
               justifyContent: isMobile ? 'stretch' : 'flex-start',
               width: '100%'
             }}>
-              <Button
-                variant="outlined"
+            <Button
+              variant="outlined"
                 size={isMobile ? "small" : "medium"}
-                onClick={() => setSelectedWeek(prev => addDays(prev, -7))}
+              onClick={() => setSelectedWeek(prev => addDays(prev, -7))}
                 startIcon={!isMobile ? <ChevronLeftIcon /> : null}
                 sx={{ 
                   minWidth: isMobile ? 'auto' : '60px',
@@ -1828,11 +1828,11 @@ function ScheduleBuilderTab() {
                 }}
               >
                 {isMobile ? '← Prev' : ''}
-              </Button>
-              <Button
-                variant="outlined"
+            </Button>
+            <Button
+              variant="outlined"
                 size={isMobile ? "small" : "medium"}
-                onClick={() => setSelectedWeek(new Date())}
+              onClick={() => setSelectedWeek(new Date())}
                 startIcon={!isMobile ? <TodayIcon /> : null}
                 sx={{ 
                   minWidth: isMobile ? 'auto' : '60px',
@@ -1842,11 +1842,11 @@ function ScheduleBuilderTab() {
                 }}
               >
                 {isMobile ? 'Today' : ''}
-              </Button>
-              <Button
-                variant="outlined"
+            </Button>
+            <Button
+              variant="outlined"
                 size={isMobile ? "small" : "medium"}
-                onClick={() => setSelectedWeek(prev => addDays(prev, 7))}
+              onClick={() => setSelectedWeek(prev => addDays(prev, 7))}
                 startIcon={!isMobile ? <ChevronRightIcon /> : null}
                 sx={{ 
                   minWidth: isMobile ? 'auto' : '60px',
@@ -1856,7 +1856,7 @@ function ScheduleBuilderTab() {
                 }}
               >
                 {isMobile ? 'Next →' : ''}
-              </Button>
+            </Button>
             </Box>
 
             {/* Row 2: Action Buttons */}
@@ -1868,11 +1868,11 @@ function ScheduleBuilderTab() {
               width: '100%'
             }}>
               <Tooltip title={`Auto-assign staff for the week of ${format(weekStart, 'MMMM d, yyyy')}`}>
-                <Button
-                  variant="contained"
+            <Button
+              variant="contained"
                   size={isMobile ? "small" : "medium"}
                   startIcon={!isMobile ? <AutoAssignIcon /> : null}
-                  onClick={autoAssignStaff}
+              onClick={autoAssignStaff}
                   disabled={isScheduleLocked && lockedBy !== currentUser?.id}
                   sx={{ 
                     minWidth: isMobile ? 'auto' : '120px',
@@ -1881,13 +1881,13 @@ function ScheduleBuilderTab() {
                   }}
                 >
                   {isMobile ? 'Auto' : 'Auto Assign'}
-                </Button>
+            </Button>
               </Tooltip>
-              <Button
-                variant="outlined"
-                color="error"
+            <Button
+              variant="outlined"
+              color="error"
                 size={isMobile ? "small" : "medium"}
-                onClick={clearWeek}
+              onClick={clearWeek}
                 disabled={loading || isClearing || (isScheduleLocked && lockedBy !== currentUser?.id)}
                 sx={{ 
                   minWidth: isMobile ? 'auto' : '120px',
@@ -1896,12 +1896,12 @@ function ScheduleBuilderTab() {
                 }}
               >
                 {isMobile ? (isClearing ? 'Clearing...' : 'Clear') : (isClearing ? 'Clearing...' : 'Clear Week')}
-              </Button>
-              <Button
-                variant="contained"
+            </Button>
+            <Button
+              variant="contained"
                 size={isMobile ? "small" : "medium"}
                 startIcon={!isMobile ? <SaveIcon /> : null}
-                onClick={saveWeekSchedule}
+              onClick={saveWeekSchedule}
                 disabled={isScheduleLocked && lockedBy !== currentUser?.id || isSaving}
                 sx={{ 
                   minWidth: isMobile ? 'auto' : '120px',
@@ -1925,17 +1925,17 @@ function ScheduleBuilderTab() {
                 }}
               >
                 {isMobile ? (isPublishing ? 'Publishing...' : 'Publish') : (isPublishing ? 'Publishing...' : 'Publish')}
-              </Button>
-            </Box>
+            </Button>
           </Box>
+        </Box>
         </Box>
 
 
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <Typography variant="h6">
-            Week of {format(weekStart, 'MMMM d, yyyy')}
-          </Typography>
+          Week of {format(weekStart, 'MMMM d, yyyy')}
+        </Typography>
           {isPublished && (
             <Chip 
               label="Published" 

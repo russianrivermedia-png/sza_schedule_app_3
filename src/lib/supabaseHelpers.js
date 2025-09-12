@@ -303,6 +303,99 @@ export const scheduleHelpers = {
     
     if (error) throw error;
     return data;
+  },
+
+  // New functions for shift swapping and covering
+  async swapShifts(scheduleId, dateString, requesterShiftId, requesterRoleId, accepterShiftId, accepterRoleId, requesterId, accepterId) {
+    // Get the current schedule
+    const { data: schedule, error: fetchError } = await supabase
+      .from('schedules')
+      .select('days, version')
+      .eq('id', scheduleId)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    if (!schedule) throw new Error('Schedule not found');
+
+    // Deep clone the days object to avoid mutation
+    const updatedDays = JSON.parse(JSON.stringify(schedule.days));
+    
+    // Find the shifts in the schedule
+    const requesterShift = updatedDays[dateString]?.shifts?.find(s => s.id === requesterShiftId);
+    const accepterShift = updatedDays[dateString]?.shifts?.find(s => s.id === accepterShiftId);
+    
+    if (!requesterShift || !accepterShift) {
+      throw new Error('One or both shifts not found');
+    }
+
+    // Swap the staff assignments
+    if (requesterShift.assignedStaff && accepterShift.assignedStaff) {
+      const requesterStaffId = requesterShift.assignedStaff[requesterRoleId];
+      const accepterStaffId = accepterShift.assignedStaff[accepterRoleId];
+      
+      // Perform the swap
+      requesterShift.assignedStaff[requesterRoleId] = accepterStaffId;
+      accepterShift.assignedStaff[accepterRoleId] = requesterStaffId;
+    }
+
+    // Update the schedule in the database
+    const { data, error } = await supabase
+      .from('schedules')
+      .update({
+        days: updatedDays,
+        version: schedule.version + 1,
+        last_modified_at: new Date().toISOString()
+      })
+      .eq('id', scheduleId)
+      .select('id, days, version')
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async coverShift(scheduleId, dateString, shiftId, roleId, coveringStaffId) {
+    // Get the current schedule
+    const { data: schedule, error: fetchError } = await supabase
+      .from('schedules')
+      .select('days, version')
+      .eq('id', scheduleId)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    if (!schedule) throw new Error('Schedule not found');
+
+    // Deep clone the days object to avoid mutation
+    const updatedDays = JSON.parse(JSON.stringify(schedule.days));
+    
+    // Find the shift in the schedule
+    const shift = updatedDays[dateString]?.shifts?.find(s => s.id === shiftId);
+    
+    if (!shift) {
+      throw new Error('Shift not found');
+    }
+
+    // Assign the covering staff to the role
+    if (shift.assignedStaff) {
+      shift.assignedStaff[roleId] = coveringStaffId;
+    } else {
+      shift.assignedStaff = { [roleId]: coveringStaffId };
+    }
+
+    // Update the schedule in the database
+    const { data, error } = await supabase
+      .from('schedules')
+      .update({
+        days: updatedDays,
+        version: schedule.version + 1,
+        last_modified_at: new Date().toISOString()
+      })
+      .eq('id', scheduleId)
+      .select('id, days, version')
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 };
 

@@ -290,7 +290,7 @@ function StaffTab() {
         hire_date: formData.hireDate || null,
         staff_color: formData.staffColor,
         trained_roles: formData.trainedRoles,
-        availability: formData.availability,
+      availability: formData.availability,
         email: formData.email || null,
         phone: formData.phone || null,
         target_shifts: formData.targetShifts || 5,
@@ -640,9 +640,9 @@ function StaffTab() {
                           flexShrink: 0
                         }}
                       />
-                      <Typography variant="h6" component="div">
-                        {member.name}
-                      </Typography>
+                    <Typography variant="h6" component="div">
+                      {member.name}
+                    </Typography>
                     </Box>
                     <Box>
                       <IconButton
@@ -678,14 +678,14 @@ function StaffTab() {
                     </Typography>
                     
                     {member.on_call && (
-                      <Typography variant="body2" gutterBottom>
-                        <strong>Status:</strong>
-                        <Chip
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Status:</strong>
+                      <Chip
                           label="ON CALL"
                           color="warning"
-                          size="small"
-                          sx={{ ml: 1 }}
-                        />
+                        size="small"
+                        sx={{ ml: 1 }}
+                      />
                       </Typography>
                     )}
                     
@@ -1313,11 +1313,11 @@ function StaffTab() {
                   justifyContent: 'center'
                 }}
               />
-              <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="text.secondary">
                 {colorFormData.color}
-              </Typography>
-            </Box>
-          </Box>
+                        </Typography>
+                    </Box>
+                    </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseColorDialog}>Cancel</Button>
