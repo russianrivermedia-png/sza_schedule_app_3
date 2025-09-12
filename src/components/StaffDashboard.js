@@ -63,6 +63,7 @@ function StaffDashboard() {
   });
   const [swapDialogOpen, setSwapDialogOpen] = useState(false);
   const [coverDialogOpen, setCoverDialogOpen] = useState(false);
+  const [offerCoverageDialogOpen, setOfferCoverageDialogOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState(null);
   const [swapForm, setSwapForm] = useState({
     reason: '',
@@ -71,7 +72,12 @@ function StaffDashboard() {
   const [coverForm, setCoverForm] = useState({
     reason: ''
   });
+  const [offerCoverageForm, setOfferCoverageForm] = useState({
+    date: '',
+    message: ''
+  });
   const [coverageRequests, setCoverageRequests] = useState([]);
+  const [coverageOffers, setCoverageOffers] = useState([]);
 
   // Helper function to check if a request has expired
   const isRequestExpired = (request) => {
@@ -469,6 +475,41 @@ function StaffDashboard() {
     } catch (error) {
       console.error('Error submitting cover request:', error);
       alert('Error submitting cover request. Please try again.');
+    }
+  };
+
+  const handleOfferCoverageClick = () => {
+    setOfferCoverageForm({ date: '', message: '' });
+    setOfferCoverageDialogOpen(true);
+  };
+
+  const handleOfferCoverageSubmit = async () => {
+    try {
+      if (!offerCoverageForm.date || !offerCoverageForm.message.trim()) {
+        alert('Please select a date and enter a message.');
+        return;
+      }
+
+      const newCoverageOffer = {
+        id: Date.now(), // Temporary ID
+        offerer: staffMember.name,
+        offererId: staffMember.id,
+        date: new Date(offerCoverageForm.date),
+        message: offerCoverageForm.message.trim(),
+        status: 'active',
+        type: 'offer',
+        createdAt: new Date()
+      };
+      
+      setCoverageOffers(prev => [newCoverageOffer, ...prev]);
+      
+      setOfferCoverageDialogOpen(false);
+      setOfferCoverageForm({ date: '', message: '' });
+      
+      alert(`Coverage offer submitted for ${format(new Date(offerCoverageForm.date), 'EEEE, MMM d, yyyy')}!`);
+    } catch (error) {
+      console.error('Error submitting coverage offer:', error);
+      alert('Error submitting coverage offer. Please try again.');
     }
   };
 
@@ -962,15 +1003,35 @@ function StaffDashboard() {
         <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Typography variant={isMobile ? "subtitle1" : "h6"} gutterBottom>
-                <HelpOutline sx={{ mr: 1, verticalAlign: 'middle' }} />
-                {isMobile ? "Coverage" : "Coverage Requests"}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: isMobile ? 'center' : 'left' }}>
-                {isMobile ? "Help with shifts" : "Cover requests (cover for someone) and Swap requests (trade shifts)"}
-              </Typography>
+               <Box sx={{ 
+                 display: 'flex', 
+                 justifyContent: 'space-between', 
+                 alignItems: isMobile ? 'flex-start' : 'center', 
+                 mb: 2,
+                 flexDirection: isMobile ? 'column' : 'row',
+                 gap: isMobile ? 1 : 0
+               }}>
+                 <Box>
+                   <Typography variant={isMobile ? "subtitle1" : "h6"} gutterBottom>
+                     <HelpOutline sx={{ mr: 1, verticalAlign: 'middle' }} />
+                     {isMobile ? "Coverage" : "Coverage Requests"}
+                   </Typography>
+                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: isMobile ? 'center' : 'left' }}>
+                     {isMobile ? "Help with shifts" : "Cover requests (cover for someone) and Swap requests (trade shifts)"}
+                   </Typography>
+                 </Box>
+                 <Button
+                   size="small"
+                   startIcon={<AddIcon />}
+                   onClick={handleOfferCoverageClick}
+                   variant="contained"
+                   sx={{ alignSelf: isMobile ? 'flex-start' : 'auto' }}
+                 >
+                   {isMobile ? "Offer" : "Offer Coverage"}
+                 </Button>
+               </Box>
               
-              {getActiveRequests().length > 0 ? (
+              {(getActiveRequests().length > 0 || coverageOffers.length > 0) ? (
                 <Grid container spacing={isMobile ? 1 : 2}>
                   {getActiveRequests().map((request) => (
                     <Grid item xs={12} sm={6} md={4} key={request.id}>
@@ -1094,6 +1155,43 @@ function StaffDashboard() {
                             />
                           </Box>
                         ) : null}
+                      </Box>
+                    </Grid>
+                  ))}
+                  
+                  {/* Coverage Offers */}
+                  {coverageOffers.map((offer) => (
+                    <Grid item xs={12} sm={6} md={4} key={offer.id}>
+                      <Box sx={{ 
+                        p: isMobile ? 1.5 : 2, 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: 1,
+                        bgcolor: 'background.paper'
+                      }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant={isMobile ? "body2" : "subtitle2"} sx={{ fontWeight: 'medium' }}>
+                              Coverage Available
+                            </Typography>
+                            <Typography variant={isMobile ? "caption" : "body2"} color="success.main">
+                              {format(offer.date, 'MMM dd')} - {offer.offerer}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              {offer.message}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                            <Chip 
+                              label="Offer" 
+                              size="small" 
+                              color="success"
+                              variant="outlined"
+                            />
+                          </Box>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                          Posted: {format(offer.createdAt, 'MMM dd, h:mm a')}
+                        </Typography>
                       </Box>
                     </Grid>
                   ))}
@@ -1372,10 +1470,58 @@ function StaffDashboard() {
           <Button onClick={handleCoverSubmit} variant="contained" disabled={!coverForm.reason.trim()}>
             Submit Coverage Request
           </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
-  );
-}
+         </DialogActions>
+       </Dialog>
+
+       {/* Offer Coverage Dialog */}
+       <Dialog open={offerCoverageDialogOpen} onClose={() => setOfferCoverageDialogOpen(false)} maxWidth="sm" fullWidth>
+         <DialogTitle>Offer Coverage</DialogTitle>
+         <DialogContent>
+           <Box sx={{ pt: 1 }}>
+             <Alert severity="info" sx={{ mb: 2 }}>
+               <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 1 }}>
+                 Coverage Offer:
+               </Typography>
+               <Typography variant="body2" sx={{ mb: 1 }}>
+                 • Let your team know you're available to cover shifts
+               </Typography>
+               <Typography variant="body2">
+                 • This will be visible to all staff members
+               </Typography>
+             </Alert>
+
+             <TextField
+               fullWidth
+               label="Date Available"
+               type="date"
+               value={offerCoverageForm.date}
+               onChange={(e) => setOfferCoverageForm({ ...offerCoverageForm, date: e.target.value })}
+               margin="normal"
+               InputLabelProps={{ shrink: true }}
+               required
+             />
+
+             <TextField
+               fullWidth
+               label="Message (Optional)"
+               value={offerCoverageForm.message}
+               onChange={(e) => setOfferCoverageForm({ ...offerCoverageForm, message: e.target.value })}
+               margin="normal"
+               multiline
+               rows={3}
+               placeholder="Let your team know when you're available or any specific details..."
+             />
+           </Box>
+         </DialogContent>
+         <DialogActions>
+           <Button onClick={() => setOfferCoverageDialogOpen(false)}>Cancel</Button>
+           <Button onClick={handleOfferCoverageSubmit} variant="contained" disabled={!offerCoverageForm.date}>
+             Submit Offer
+           </Button>
+         </DialogActions>
+       </Dialog>
+     </Box>
+   );
+ }
 
 export default StaffDashboard;
