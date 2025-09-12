@@ -354,6 +354,7 @@ function StaffTab() {
         staff_id: timeOffForm.staffId,
         start_date: timeOffForm.startDate,
         end_date: timeOffForm.endDate,
+        reason: timeOffForm.reason || null,
         status: timeOffForm.isApproved ? 'approved' : 'pending',
       };
 
