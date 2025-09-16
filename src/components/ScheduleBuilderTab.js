@@ -1092,6 +1092,166 @@ function ScheduleBuilderTab() {
   const [templateMenuAnchor, setTemplateMenuAnchor] = useState(null);
   const [selectedDayForTemplate, setSelectedDayForTemplate] = useState(null);
 
+  // CSV Import integration
+  const [csvImportData, setCsvImportData] = useState(null);
+
+  // Function to create shifts from CSV booking data
+  const createShiftsFromCSVData = (csvData, targetDate) => {
+    if (!csvData || !targetDate) return;
+
+    const dayKey = format(targetDate, 'yyyy-MM-dd');
+    const daySchedule = weekSchedule[dayKey] || { shifts: [] };
+    
+    // Group bookings by time slot and tour type
+    const groupedBookings = {};
+    
+    csvData.forEach(booking => {
+      const timeKey = booking.time;
+      const tourType = getTourTypeFromProduct(booking.product);
+      
+      if (!groupedBookings[timeKey]) {
+        groupedBookings[timeKey] = {};
+      }
+      
+      if (!groupedBookings[timeKey][tourType]) {
+        groupedBookings[timeKey][tourType] = {
+          totalGuests: 0,
+          bookings: []
+        };
+      }
+      
+      groupedBookings[timeKey][tourType].totalGuests += booking.guestCount;
+      groupedBookings[timeKey][tourType].bookings.push(booking);
+    });
+
+    // Generate shifts for each time slot
+    const newShifts = [];
+    Object.entries(groupedBookings).forEach(([timeSlot, tourTypes]) => {
+      Object.entries(tourTypes).forEach(([tourType, data]) => {
+        // Find matching shift template
+        const shiftTemplate = shifts.find(s => 
+          s.name.toLowerCase().includes(tourType.toLowerCase()) ||
+          s.name.toLowerCase().includes('zipline') ||
+          s.name.toLowerCase().includes('treehouse')
+        );
+
+        if (shiftTemplate) {
+          // Calculate required staff: 2 guides per tour
+          const tourConfig = getTourConfigForTourType(tourType);
+          const requiredStaff = data.tourCount * 2; // 2 guides per tour
+          const toursPerGuide = Math.ceil(data.tourCount / Math.ceil(requiredStaff / 2));
+          
+          const newShift = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            shiftId: shiftTemplate.id,
+            name: `${shiftTemplate.name} - ${timeSlot}`,
+            requiredRoles: tourConfig.roles,
+            tours: shiftTemplate.tours || [],
+            tourColors: {},
+            staffColors: {},
+            assignedStaff: {},
+            arrivalTime: timeSlot,
+            notes: `Auto-generated from CSV: ${data.tourCount} tours, ${data.totalGuests} guests, ${data.bookings.length} bookings`,
+            isTeamEvent: false,
+            csvGenerated: true,
+            tourCount: data.tourCount,
+            guestCount: data.totalGuests,
+            bookingCount: data.bookings.length,
+            duration: tourConfig.duration,
+            maxToursPerGuide: tourConfig.maxToursPerGuide
+          };
+          
+          newShifts.push(newShift);
+        }
+      });
+    });
+
+    // Add new shifts to the day
+    const updatedDay = {
+      ...daySchedule,
+      shifts: [...daySchedule.shifts, ...newShifts]
+    };
+
+    setWeekSchedule(prev => ({
+      ...prev,
+      [dayKey]: updatedDay
+    }));
+
+    return newShifts.length;
+  };
+
+  const getTourTypeFromProduct = (product) => {
+    if (product.includes('Treehouse Adventures')) return 'Treehouse Adventures';
+    if (product.includes('Tree Tops Zipline Tour')) return 'Tree Tops Zipline Tour';
+    if (product.includes('Forest Flight Zipline Tour')) return 'Forest Flight Zipline Tour';
+    if (product.includes('Night Flights Zipline Tours')) return 'Night Flights Zipline Tours';
+    return 'Unknown';
+  };
+
+  const getTourConfigForTourType = (tourType) => {
+    const configs = {
+      'Treehouse Adventures': {
+        roles: ['Lead Guide', 'Sweep Guide'],
+        duration: 2.5,
+        maxToursPerGuide: 3
+      },
+      'Tree Tops Zipline Tour': {
+        roles: ['Lead Guide', 'Sweep Guide'],
+        duration: 2.5,
+        maxToursPerGuide: 3
+      },
+      'Forest Flight Zipline Tour': {
+        roles: ['Lead Guide', 'Sweep Guide'],
+        duration: 2.5,
+        maxToursPerGuide: 3
+      },
+      'Night Flights Zipline Tours': {
+        roles: ['Lead Guide', 'Sweep Guide'],
+        duration: 2.5,
+        maxToursPerGuide: 3
+      }
+    };
+    return configs[tourType] || configs['Tree Tops Zipline Tour'];
+  };
+
+  // Listen for CSV import data from localStorage and custom events
+  useEffect(() => {
+    const handleCSVImport = (event) => {
+      const csvData = event?.detail || JSON.parse(localStorage.getItem('csvImportData') || 'null');
+      if (csvData) {
+        try {
+          setCsvImportData(csvData);
+          
+          // Auto-create shifts if we have the data
+          if (csvData.bookings && csvData.targetDate) {
+            const targetDate = new Date(csvData.targetDate);
+            const shiftsCreated = createShiftsFromCSVData(csvData.bookings, targetDate);
+            
+            if (shiftsCreated > 0) {
+              alert(`Successfully created ${shiftsCreated} shifts from CSV data!`);
+              // Clear the data from localStorage
+              localStorage.removeItem('csvImportData');
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing CSV import data:', error);
+        }
+      }
+    };
+
+    // Check for existing data
+    handleCSVImport();
+    
+    // Listen for custom events and storage changes
+    window.addEventListener('csvImportReady', handleCSVImport);
+    window.addEventListener('storage', handleCSVImport);
+    
+    return () => {
+      window.removeEventListener('csvImportReady', handleCSVImport);
+      window.removeEventListener('storage', handleCSVImport);
+    };
+  }, [shifts, weekSchedule]);
+
   const saveDayAsTemplate = (day, dayIndex) => {
     const dayKey = format(day, 'yyyy-MM-dd');
     const daySchedule = weekSchedule[dayKey];

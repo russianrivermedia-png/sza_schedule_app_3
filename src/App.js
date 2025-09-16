@@ -16,6 +16,7 @@ import StaffDashboard from './components/StaffDashboard';
 import StaffRegistration from './components/StaffRegistration';
 import LoginForm from './components/LoginForm';
 import ProtectedRoute from './components/ProtectedRoute';
+import CSVImportTab from './components/CSVImportTab';
 import { DataProvider } from './context/DataContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -80,6 +81,11 @@ function App() {
                   <Route path="/accounts" element={
                     <ProtectedRoute requiredRole="manager">
                       <AccountManagementTab />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/csv-import" element={
+                    <ProtectedRoute requiredRole="manager">
+                      <CSVImportTab />
                     </ProtectedRoute>
                   } />
                   

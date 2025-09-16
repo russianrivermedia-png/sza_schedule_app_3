@@ -48,6 +48,7 @@ function Navigation() {
     { label: 'Shifts', path: '/shifts' },
     { label: 'Time Off', path: '/time-off' },
     { label: 'Accounts', path: '/accounts' },
+    { label: 'CSV Import', path: '/csv-import' },
   ];
 
   // Main tabs (role-based visibility)
