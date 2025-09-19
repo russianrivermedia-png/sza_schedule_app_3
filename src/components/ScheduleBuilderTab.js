@@ -37,6 +37,7 @@ import {
 import {
   Delete as DeleteIcon,
   AutoFixHigh as AutoAssignIcon,
+  AutoFixHigh as AutoFixHighIcon,
   Warning as WarningIcon,
   MoreVert as MoreVertIcon,
   Notes as NotesIcon,
@@ -57,6 +58,7 @@ import {
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { scheduleHelpers, roleAssignmentsHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
+import { supabase } from '../lib/supabase';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import DroppableRole from './DroppableRole';
 import TourDisplay from './TourDisplay';
@@ -100,12 +102,24 @@ function ScheduleBuilderTab() {
   const [isClearing, setIsClearing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
 
   // Shift assignment state
   const [selectedShifts, setSelectedShifts] = useState([]);
 
   // Actions menu state
   const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
+  
+  // Bug fixing menu state
+  const [bugFixingMenuAnchor, setBugFixingMenuAnchor] = useState(null);
+
+  const handleBugFixingMenuOpen = (event) => {
+    setBugFixingMenuAnchor(event.currentTarget);
+  };
+
+  const handleBugFixingMenuClose = () => {
+    setBugFixingMenuAnchor(null);
+  };
 
   // Add Role dialog state
   const [openAddRoleDialog, setOpenAddRoleDialog] = useState(false);
@@ -204,7 +218,12 @@ function ScheduleBuilderTab() {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     const existingSchedule = schedules.find(s => s.weekKey === weekKey);
     
-    // console.log('Loading week schedule for:', weekKey);
+    console.log('🔍 LOADING WEEK SCHEDULE:', {
+      weekKey,
+      existingSchedule: existingSchedule ? 'FOUND' : 'NOT FOUND',
+      totalSchedules: schedules.length,
+      scheduleDates: schedules.map(s => ({ weekKey: s.weekKey, hasDays: !!s.days }))
+    });
     
     if (existingSchedule) {
       // Track version and locking info
@@ -221,13 +240,37 @@ function ScheduleBuilderTab() {
       Object.keys(scheduleData).forEach(dayKey => {
         const dayData = scheduleData[dayKey];
         if (dayData && dayData.shifts) {
+          console.log(`🔍 PROCESSING DAY ${dayKey}:`, {
+            shiftsCount: dayData.shifts.length,
+            shiftNames: dayData.shifts.map(s => s.name),
+            shiftRoles: dayData.shifts.map(s => ({
+              name: s.name,
+              requiredRoles: s.required_roles || s.requiredRoles || [],
+              assignedStaff: s.assignedStaff || {}
+            }))
+          });
+          
           normalizedScheduleData[dayKey] = {
             ...dayData,
             shifts: dayData.shifts.map(shift => {
+              // Clean up invalid staff assignments
+              const cleanedAssignedStaff = {};
+              const originalAssignedStaff = shift.assignedStaff || {};
+              
+              Object.keys(originalAssignedStaff).forEach(roleId => {
+                const staffId = originalAssignedStaff[roleId];
+                const staffExists = getStaffById(staffId);
+                
+                if (staffExists) {
+                  cleanedAssignedStaff[roleId] = staffId;
+                } else {
+                  console.log(`🧹 Removing invalid assignment on load: Role ${roleId} -> Staff ${staffId} (not found)`);
+                }
+              });
               
               return {
-              ...shift,
-              assignedStaff: shift.assignedStaff || {}
+                ...shift,
+                assignedStaff: cleanedAssignedStaff
               };
             })
           };
@@ -241,16 +284,29 @@ function ScheduleBuilderTab() {
       weekDates.forEach(date => {
         const dayKey = format(date, 'yyyy-MM-dd');
         if (normalizedScheduleData[dayKey]) {
+          console.log(`🔍 USING EXISTING DATA for ${dayKey}:`, {
+            shiftsCount: normalizedScheduleData[dayKey].shifts?.length || 0,
+            shiftNames: normalizedScheduleData[dayKey].shifts?.map(s => s.name) || []
+          });
           completeWeekData[dayKey] = normalizedScheduleData[dayKey];
         } else {
-          // Fill in missing day with empty shifts
+          // Fill in missing day with empty shifts array
+          console.log(`🔍 CREATING EMPTY DAY for ${dayKey} (no existing data)`);
           completeWeekData[dayKey] = {
-            shifts: shifts.map(shift => ({
-              ...shift,
-              assignedStaff: {}
-            }))
+            shifts: []
           };
         }
+      });
+      
+      console.log('📥 LOADED SCHEDULE DATA:', {
+        weekKey,
+        completeWeekData,
+        totalDays: Object.keys(completeWeekData).length,
+        dayShifts: Object.keys(completeWeekData).map(dayKey => ({
+          day: dayKey,
+          shiftsCount: completeWeekData[dayKey]?.shifts?.length || 0,
+          shiftNames: completeWeekData[dayKey]?.shifts?.map(s => s.name) || []
+        }))
       });
       
       setWeekSchedule(completeWeekData);
@@ -269,10 +325,7 @@ function ScheduleBuilderTab() {
       weekDates.forEach(date => {
         const dayKey = format(date, 'yyyy-MM-dd');
         emptyWeekData[dayKey] = {
-          shifts: shifts.map(shift => ({
-            ...shift,
-            assignedStaff: {}
-          }))
+          shifts: []
         };
       });
       setWeekSchedule(emptyWeekData);
@@ -282,6 +335,16 @@ function ScheduleBuilderTab() {
     const saveWeekSchedule = async () => {
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     
+    console.log('💾 SAVING SCHEDULE:', {
+      weekKey,
+      weekSchedule,
+      totalDays: Object.keys(weekSchedule).length,
+      dayShifts: Object.keys(weekSchedule).map(dayKey => ({
+        day: dayKey,
+        shiftsCount: weekSchedule[dayKey]?.shifts?.length || 0,
+        shiftNames: weekSchedule[dayKey]?.shifts?.map(s => s.name) || []
+      }))
+    });
     
     const scheduleData = {
       days: {
@@ -441,9 +504,55 @@ function ScheduleBuilderTab() {
     setConflictCache(new Map());
   }, [timeOffRequests, weekSchedule]);
 
-  // Log role assignment for tracking
+  // Force re-render when weekSchedule changes to update role counts
+  const [roleCounts, setRoleCounts] = useState({ totalRoles: 0, assignedRoles: 0, unassignedRoles: 0 });
+  
+  useEffect(() => {
+    // Calculate role counts when weekSchedule changes
+    const totalRoles = Object.values(weekSchedule).flatMap(day => 
+      day.shifts?.flatMap(shift => {
+        const requiredRoles = shift.required_roles || shift.requiredRoles || [];
+        return requiredRoles.length;
+      }) || []
+    ).reduce((sum, count) => sum + count, 0);
+    
+    const assignedRoles = Object.values(weekSchedule).flatMap(day => 
+      day.shifts?.flatMap(shift => {
+        const requiredRoles = shift.required_roles || shift.requiredRoles || [];
+        const assignedStaff = shift.assignedStaff || {};
+        
+        const assignedRoleCount = requiredRoles.filter(roleId => {
+          const staffId = assignedStaff[roleId];
+          return staffId && staffId.trim() !== '' && staffId !== null && staffId !== undefined;
+        }).length;
+        
+        return assignedRoleCount;
+      }) || []
+    ).reduce((sum, count) => sum + count, 0);
+    
+    setRoleCounts({
+      totalRoles,
+      assignedRoles,
+      unassignedRoles: totalRoles - assignedRoles
+    });
+  }, [weekSchedule]);
+
+  // Log role assignment for tracking (only for past shifts)
   const logRoleAssignment = async (staffId, roleId, shiftId = null, tourId = null, weekKey = null, assignmentDate = null) => {
     try {
+      // Only log if the assignment date has passed
+      if (assignmentDate) {
+        const assignmentDateObj = new Date(assignmentDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Only log if the assignment date is in the past
+        if (assignmentDateObj >= today) {
+          console.log('📝 Skipping shift log - assignment date is in the future:', assignmentDate);
+          return; // Don't log future shifts
+        }
+      }
+      
       const role = getRoleById(roleId);
       if (role) {
         await roleAssignmentsHelpers.add(
@@ -456,6 +565,7 @@ function ScheduleBuilderTab() {
           'Schedule Builder', // createdBy
           assignmentDate // Pass the actual assignment date
         );
+        console.log('📝 Logged shift assignment for past date:', assignmentDate);
       }
     } catch (error) {
       console.error('Error logging role assignment:', error);
@@ -541,8 +651,11 @@ function ScheduleBuilderTab() {
         });
       });
       
-      if (isAssignedToDifferentRole) {
-        conflicts.push('Already assigned to another role on this day');
+      // Don't show conflict for simple role-to-role moves on the same day
+      // The handleStaffDrop function will handle this as a swap
+      // Only show conflict if staff is assigned to multiple different roles simultaneously
+      if (isAssignedToDifferentRole && assignedRoles.length > 2) {
+        conflicts.push('Already assigned to multiple roles on this day');
       }
     }
 
@@ -667,10 +780,26 @@ function ScheduleBuilderTab() {
 
   const removeShiftFromDay = (day, shiftIndex) => {
     const dayKey = format(day, 'yyyy-MM-dd');
+    const currentDayData = weekSchedule[dayKey];
+    
+    console.log('🗑️ REMOVING SHIFT:', {
+      dayKey,
+      shiftIndex,
+      currentShiftsCount: currentDayData?.shifts?.length || 0,
+      shiftToRemove: currentDayData?.shifts?.[shiftIndex]?.name || 'Unknown',
+      allShifts: currentDayData?.shifts?.map(s => s.name) || []
+    });
+    
     const updatedDay = {
-      ...weekSchedule[dayKey],
-      shifts: weekSchedule[dayKey].shifts.filter((_, index) => index !== shiftIndex)
+      ...currentDayData,
+      shifts: currentDayData.shifts.filter((_, index) => index !== shiftIndex)
     };
+
+    console.log('🗑️ AFTER REMOVAL:', {
+      dayKey,
+      newShiftsCount: updatedDay.shifts.length,
+      remainingShifts: updatedDay.shifts.map(s => s.name)
+    });
 
     setWeekSchedule(prev => ({
       ...prev,
@@ -1092,165 +1221,9 @@ function ScheduleBuilderTab() {
   const [templateMenuAnchor, setTemplateMenuAnchor] = useState(null);
   const [selectedDayForTemplate, setSelectedDayForTemplate] = useState(null);
 
-  // CSV Import integration
-  const [csvImportData, setCsvImportData] = useState(null);
 
-  // Function to create shifts from CSV booking data
-  const createShiftsFromCSVData = (csvData, targetDate) => {
-    if (!csvData || !targetDate) return;
 
-    const dayKey = format(targetDate, 'yyyy-MM-dd');
-    const daySchedule = weekSchedule[dayKey] || { shifts: [] };
-    
-    // Group bookings by time slot and tour type
-    const groupedBookings = {};
-    
-    csvData.forEach(booking => {
-      const timeKey = booking.time;
-      const tourType = getTourTypeFromProduct(booking.product);
-      
-      if (!groupedBookings[timeKey]) {
-        groupedBookings[timeKey] = {};
-      }
-      
-      if (!groupedBookings[timeKey][tourType]) {
-        groupedBookings[timeKey][tourType] = {
-          totalGuests: 0,
-          bookings: []
-        };
-      }
-      
-      groupedBookings[timeKey][tourType].totalGuests += booking.guestCount;
-      groupedBookings[timeKey][tourType].bookings.push(booking);
-    });
 
-    // Generate shifts for each time slot
-    const newShifts = [];
-    Object.entries(groupedBookings).forEach(([timeSlot, tourTypes]) => {
-      Object.entries(tourTypes).forEach(([tourType, data]) => {
-        // Find matching shift template
-        const shiftTemplate = shifts.find(s => 
-          s.name.toLowerCase().includes(tourType.toLowerCase()) ||
-          s.name.toLowerCase().includes('zipline') ||
-          s.name.toLowerCase().includes('treehouse')
-        );
-
-        if (shiftTemplate) {
-          // Calculate required staff: 2 guides per tour
-          const tourConfig = getTourConfigForTourType(tourType);
-          const requiredStaff = data.tourCount * 2; // 2 guides per tour
-          const toursPerGuide = Math.ceil(data.tourCount / Math.ceil(requiredStaff / 2));
-          
-          const newShift = {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            shiftId: shiftTemplate.id,
-            name: `${shiftTemplate.name} - ${timeSlot}`,
-            requiredRoles: tourConfig.roles,
-            tours: shiftTemplate.tours || [],
-            tourColors: {},
-            staffColors: {},
-            assignedStaff: {},
-            arrivalTime: timeSlot,
-            notes: `Auto-generated from CSV: ${data.tourCount} tours, ${data.totalGuests} guests, ${data.bookings.length} bookings`,
-            isTeamEvent: false,
-            csvGenerated: true,
-            tourCount: data.tourCount,
-            guestCount: data.totalGuests,
-            bookingCount: data.bookings.length,
-            duration: tourConfig.duration,
-            maxToursPerGuide: tourConfig.maxToursPerGuide
-          };
-          
-          newShifts.push(newShift);
-        }
-      });
-    });
-
-    // Add new shifts to the day
-    const updatedDay = {
-      ...daySchedule,
-      shifts: [...daySchedule.shifts, ...newShifts]
-    };
-
-    setWeekSchedule(prev => ({
-      ...prev,
-      [dayKey]: updatedDay
-    }));
-
-    return newShifts.length;
-  };
-
-  const getTourTypeFromProduct = (product) => {
-    if (product.includes('Treehouse Adventures')) return 'Treehouse Adventures';
-    if (product.includes('Tree Tops Zipline Tour')) return 'Tree Tops Zipline Tour';
-    if (product.includes('Forest Flight Zipline Tour')) return 'Forest Flight Zipline Tour';
-    if (product.includes('Night Flights Zipline Tours')) return 'Night Flights Zipline Tours';
-    return 'Unknown';
-  };
-
-  const getTourConfigForTourType = (tourType) => {
-    const configs = {
-      'Treehouse Adventures': {
-        roles: ['Lead Guide', 'Sweep Guide'],
-        duration: 2.5,
-        maxToursPerGuide: 3
-      },
-      'Tree Tops Zipline Tour': {
-        roles: ['Lead Guide', 'Sweep Guide'],
-        duration: 2.5,
-        maxToursPerGuide: 3
-      },
-      'Forest Flight Zipline Tour': {
-        roles: ['Lead Guide', 'Sweep Guide'],
-        duration: 2.5,
-        maxToursPerGuide: 3
-      },
-      'Night Flights Zipline Tours': {
-        roles: ['Lead Guide', 'Sweep Guide'],
-        duration: 2.5,
-        maxToursPerGuide: 3
-      }
-    };
-    return configs[tourType] || configs['Tree Tops Zipline Tour'];
-  };
-
-  // Listen for CSV import data from localStorage and custom events
-  useEffect(() => {
-    const handleCSVImport = (event) => {
-      const csvData = event?.detail || JSON.parse(localStorage.getItem('csvImportData') || 'null');
-      if (csvData) {
-        try {
-          setCsvImportData(csvData);
-          
-          // Auto-create shifts if we have the data
-          if (csvData.bookings && csvData.targetDate) {
-            const targetDate = new Date(csvData.targetDate);
-            const shiftsCreated = createShiftsFromCSVData(csvData.bookings, targetDate);
-            
-            if (shiftsCreated > 0) {
-              alert(`Successfully created ${shiftsCreated} shifts from CSV data!`);
-              // Clear the data from localStorage
-              localStorage.removeItem('csvImportData');
-            }
-          }
-        } catch (error) {
-          console.error('Error parsing CSV import data:', error);
-        }
-      }
-    };
-
-    // Check for existing data
-    handleCSVImport();
-    
-    // Listen for custom events and storage changes
-    window.addEventListener('csvImportReady', handleCSVImport);
-    window.addEventListener('storage', handleCSVImport);
-    
-    return () => {
-      window.removeEventListener('csvImportReady', handleCSVImport);
-      window.removeEventListener('storage', handleCSVImport);
-    };
-  }, [shifts, weekSchedule]);
 
   const saveDayAsTemplate = (day, dayIndex) => {
     const dayKey = format(day, 'yyyy-MM-dd');
@@ -1312,6 +1285,309 @@ function ScheduleBuilderTab() {
     }
   };
 
+  // Helper function to clean up invalid staff assignments
+  const cleanScheduleAssignments = (schedule) => {
+    const cleanedSchedule = {};
+    let invalidAssignmentsCount = 0;
+    
+    Object.keys(schedule).forEach(dayKey => {
+      const dayData = schedule[dayKey];
+      cleanedSchedule[dayKey] = {
+        ...dayData,
+        shifts: dayData.shifts?.map(shift => {
+          const cleanedAssignedStaff = {};
+          const originalAssignedStaff = shift.assignedStaff || {};
+          
+          Object.keys(originalAssignedStaff).forEach(roleId => {
+            const staffId = originalAssignedStaff[roleId];
+            const staffExists = getStaffById(staffId);
+            
+            if (staffExists) {
+              cleanedAssignedStaff[roleId] = staffId;
+            } else {
+              invalidAssignmentsCount++;
+              console.log(`🧹 Removing invalid assignment: Role ${roleId} -> Staff ${staffId} (not found)`);
+            }
+          });
+          
+          return {
+            ...shift,
+            assignedStaff: cleanedAssignedStaff
+          };
+        }) || []
+      };
+    });
+    
+    if (invalidAssignmentsCount > 0) {
+      console.log(`🧹 Cleaned up ${invalidAssignmentsCount} invalid staff assignments`);
+    }
+    
+    return cleanedSchedule;
+  };
+
+  const cleanInvalidAssignments = async () => {
+    try {
+      setIsCleaning(true);
+      
+      console.log('🧹 Cleaning invalid staff assignments...');
+      const cleanedSchedule = cleanScheduleAssignments(weekSchedule);
+      
+      // Check if any assignments were cleaned
+      const originalAssignments = Object.values(weekSchedule).flatMap(day => 
+        day.shifts?.flatMap(shift => Object.keys(shift.assignedStaff || {})) || []
+      ).length;
+      
+      const cleanedAssignments = Object.values(cleanedSchedule).flatMap(day => 
+        day.shifts?.flatMap(shift => Object.keys(shift.assignedStaff || {})) || []
+      ).length;
+      
+      const removedCount = originalAssignments - cleanedAssignments;
+      
+      if (removedCount > 0) {
+        console.log(`🧹 Removed ${removedCount} invalid staff assignments`);
+        
+        // Update local state
+        setWeekSchedule(cleanedSchedule);
+        
+        // Save to database
+        const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 0 });
+        const weekKey = format(weekStart, 'yyyy-MM-dd');
+        
+        const scheduleData = {
+          days: {
+            ...cleanedSchedule,
+            week_start: weekStart.toISOString(),
+            week_key: weekKey
+          }
+        };
+        
+        const existingSchedule = schedules.find(s => s.weekKey === weekKey);
+        if (existingSchedule) {
+          await scheduleHelpers.update(existingSchedule.id, scheduleData);
+        } else {
+          await scheduleHelpers.add(scheduleData);
+        }
+        
+        alert(`✅ Cleaned up ${removedCount} invalid staff assignments`);
+      } else {
+        console.log('✅ No invalid assignments found');
+        alert('✅ No invalid assignments found - all staff assignments are valid');
+      }
+    } catch (error) {
+      console.error('Error cleaning invalid assignments:', error);
+      alert('Error cleaning invalid assignments: ' + error.message);
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
+  // Check for staff duplicates or data issues
+  const checkDataIntegrity = () => {
+    console.log('🔍 Checking data integrity...');
+    
+    // Check for staff duplicates
+    const staffNames = staff.map(s => s.name.toLowerCase().trim());
+    const duplicateNames = staffNames.filter((name, index) => staffNames.indexOf(name) !== index);
+    
+    if (duplicateNames.length > 0) {
+      console.warn('⚠️ Found duplicate staff names:', [...new Set(duplicateNames)]);
+    }
+    
+    // Check for staff with missing IDs
+    const staffWithMissingIds = staff.filter(s => !s.id || s.id.trim() === '');
+    if (staffWithMissingIds.length > 0) {
+      console.warn('⚠️ Found staff with missing IDs:', staffWithMissingIds.map(s => s.name));
+    }
+    
+    // Check for roles with missing IDs
+    const rolesWithMissingIds = roles.filter(r => !r.id || r.id.trim() === '');
+    if (rolesWithMissingIds.length > 0) {
+      console.warn('⚠️ Found roles with missing IDs:', rolesWithMissingIds.map(r => r.name));
+    }
+    
+    // Check for shifts with missing IDs
+    const shiftsWithMissingIds = shifts.filter(s => !s.id || s.id.trim() === '');
+    if (shiftsWithMissingIds.length > 0) {
+      console.warn('⚠️ Found shifts with missing IDs:', shiftsWithMissingIds.map(s => s.name));
+    }
+    
+    console.log('✅ Data integrity check completed');
+    return {
+      duplicateNames: [...new Set(duplicateNames)],
+      staffWithMissingIds: staffWithMissingIds.length,
+      rolesWithMissingIds: rolesWithMissingIds.length,
+      shiftsWithMissingIds: shiftsWithMissingIds.length
+    };
+  };
+
+  const fixStaleRoleId = async () => {
+    const staleRoleId = '1536f435-36f0-467e-9d8b-b17587dd4b3b';
+    console.log('🔧 FIXING STALE ROLE ID:', staleRoleId);
+    console.log('🔍 Current roles available:', roles.map(r => ({ id: r.id, name: r.name })));
+    
+    let updatedSchedules = 0;
+    let updatedShifts = 0;
+    
+    // Process all schedules
+    for (const schedule of schedules) {
+      if (!schedule.days || typeof schedule.days !== 'object') continue;
+      
+      let scheduleUpdated = false;
+      const updatedDays = { ...schedule.days };
+      
+      // Process each day in the schedule
+      for (const [dayKey, dayData] of Object.entries(updatedDays)) {
+        if (!dayData.shifts || !Array.isArray(dayData.shifts)) continue;
+        
+        let dayUpdated = false;
+        const processedShifts = dayData.shifts.map(shift => {
+          if (!shift.required_roles && !shift.requiredRoles) return shift;
+          
+          const roleIds = shift.required_roles || shift.requiredRoles || [];
+          const hasStaleRole = roleIds.includes(staleRoleId);
+          
+          if (hasStaleRole) {
+            console.log(`🔧 REMOVING STALE ROLE from shift "${shift.name}" on ${dayKey}`);
+            const filteredRoles = roleIds.filter(id => id !== staleRoleId);
+            
+            // Remove from assignedStaff if it exists
+            const updatedAssignedStaff = { ...shift.assignedStaff };
+            if (updatedAssignedStaff[staleRoleId]) {
+              delete updatedAssignedStaff[staleRoleId];
+              console.log(`🔧 REMOVED STALE ROLE ASSIGNMENT from shift "${shift.name}"`);
+            }
+            
+            dayUpdated = true;
+            updatedShifts++;
+            
+            return {
+              ...shift,
+              required_roles: filteredRoles,
+              requiredRoles: filteredRoles,
+              assignedStaff: updatedAssignedStaff
+            };
+          }
+          
+          return shift;
+        });
+        
+        if (dayUpdated) {
+          updatedDays[dayKey] = {
+            ...dayData,
+            shifts: processedShifts
+          };
+          scheduleUpdated = true;
+        }
+      }
+      
+      if (scheduleUpdated) {
+        // Update the schedule in the database
+        try {
+          const { error } = await supabase
+            .from('schedules')
+            .update({ days: updatedDays })
+            .eq('id', schedule.id);
+          
+          if (error) {
+            console.error('❌ Error updating schedule:', error);
+          } else {
+            console.log(`✅ Updated schedule ${schedule.id}`);
+            updatedSchedules++;
+          }
+        } catch (err) {
+          console.error('❌ Error updating schedule:', err);
+        }
+      }
+    }
+    
+    console.log(`🎉 STALE ROLE CLEANUP COMPLETE:`);
+    console.log(`   - Updated ${updatedSchedules} schedules`);
+    console.log(`   - Fixed ${updatedShifts} shifts`);
+    
+    // Reload data to reflect changes
+    if (updatedSchedules > 0) {
+      console.log('🔄 Reloading data...');
+      dispatch({ type: 'RELOAD_DATA' });
+    }
+  };
+
+  const removeShiftsWithNoValidRoles = async () => {
+    console.log('🗑️ REMOVING SHIFTS WITH NO VALID ROLES...');
+    
+    let updatedSchedules = 0;
+    let removedShifts = 0;
+    
+    // Process all schedules
+    for (const schedule of schedules) {
+      if (!schedule.days || typeof schedule.days !== 'object') continue;
+      
+      let scheduleUpdated = false;
+      const updatedDays = { ...schedule.days };
+      
+      // Process each day in the schedule
+      for (const [dayKey, dayData] of Object.entries(updatedDays)) {
+        if (!dayData.shifts || !Array.isArray(dayData.shifts)) continue;
+        
+        let dayUpdated = false;
+        const validShifts = dayData.shifts.filter(shift => {
+          const roleIds = shift.required_roles || shift.requiredRoles || [];
+          
+          // Check if shift has any valid roles
+          const hasValidRoles = roleIds.some(roleId => {
+            const role = getRoleById(roleId);
+            return role !== undefined;
+          });
+          
+          if (!hasValidRoles && roleIds.length > 0) {
+            console.log(`🗑️ REMOVING SHIFT "${shift.name}" on ${dayKey} - no valid roles`);
+            removedShifts++;
+            dayUpdated = true;
+            return false; // Remove this shift
+          }
+          
+          return true; // Keep this shift
+        });
+        
+        if (dayUpdated) {
+          updatedDays[dayKey] = {
+            ...dayData,
+            shifts: validShifts
+          };
+          scheduleUpdated = true;
+        }
+      }
+      
+      if (scheduleUpdated) {
+        // Update the schedule in the database
+        try {
+          const { error } = await supabase
+            .from('schedules')
+            .update({ days: updatedDays })
+            .eq('id', schedule.id);
+          
+          if (error) {
+            console.error('❌ Error updating schedule:', error);
+          } else {
+            console.log(`✅ Updated schedule ${schedule.id}`);
+            updatedSchedules++;
+          }
+        } catch (err) {
+          console.error('❌ Error updating schedule:', err);
+        }
+      }
+    }
+    
+    console.log(`🎉 SHIFT CLEANUP COMPLETE:`);
+    console.log(`   - Updated ${updatedSchedules} schedules`);
+    console.log(`   - Removed ${removedShifts} shifts with no valid roles`);
+    
+    // Reload data to reflect changes
+    if (updatedSchedules > 0) {
+      console.log('🔄 Reloading data...');
+      dispatch({ type: 'RELOAD_DATA' });
+    }
+  };
+
   const clearWeek = async () => {
     if (!window.confirm('Are you sure you want to clear all assignments for this week? This action cannot be undone.')) {
       return;
@@ -1321,8 +1597,8 @@ function ScheduleBuilderTab() {
       setIsClearing(true);
       
       // Calculate week start and end dates
-      const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
-      const weekEnd = addDays(weekStart, 6); // Sunday
+      const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 0 }); // Sunday (matching the schedule format)
+      const weekEnd = addDays(weekStart, 6); // Saturday
       
       // Clear assignments from database
       console.log('🗑️ Clearing role assignments from database...');
@@ -1525,6 +1801,7 @@ function ScheduleBuilderTab() {
         
         // Process all roles for this shift
         const roleIds = shift.required_roles || shift.requiredRoles || [];
+        console.log(`🔍 SHIFT "${shift.name}" on ${dayOfWeek} has roles:`, roleIds);
         for (const roleId of roleIds) {
           const role = getRoleById(roleId);
           console.log(`🔍 PROCESSING ROLE: ${role?.name || roleId} on ${dayOfWeek}`);
@@ -1801,6 +2078,19 @@ function ScheduleBuilderTab() {
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {(shift.required_roles || shift.requiredRoles || []).map(roleId => {
                               const role = getRoleById(roleId);
+                              
+                              // Debug undefined roles
+                              if (!role) {
+                                console.error('🚨 UNDEFINED ROLE DETECTED (with tours):', {
+                                  roleId,
+                                  shiftName: shift.name,
+                                  day: format(day, 'yyyy-MM-dd'),
+                                  availableRoles: roles.map(r => ({ id: r.id, name: r.name })),
+                                  totalRoles: roles.length
+                                });
+                                return null; // Skip rendering this role
+                              }
+                              
                           const assignedStaffId = shift.assignedStaff[roleId];
                               const assignedStaff = getStaffById(assignedStaffId);
                           const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
@@ -1935,9 +2225,23 @@ function ScheduleBuilderTab() {
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
                     {(shift.required_roles || shift.requiredRoles || []).map(roleId => {
                       const role = getRoleById(roleId);
+                      
+                      // Debug undefined roles
+                      if (!role) {
+                        console.error('🚨 UNDEFINED ROLE DETECTED:', {
+                          roleId,
+                          shiftName: shift.name,
+                          day: format(day, 'yyyy-MM-dd'),
+                          availableRoles: roles.map(r => ({ id: r.id, name: r.name })),
+                          totalRoles: roles.length
+                        });
+                        return null; // Skip rendering this role
+                      }
+                      
                       const assignedStaffId = shift.assignedStaff[roleId];
                       const assignedStaff = getStaffById(assignedStaffId);
                       const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
+                      
                       
                       return (
                         <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -2116,17 +2420,17 @@ function ScheduleBuilderTab() {
               </Tooltip>
             <Button
               variant="outlined"
-              color="error"
-                size={isMobile ? "small" : "medium"}
-              onClick={clearWeek}
-                disabled={loading || isClearing || (isScheduleLocked && lockedBy !== currentUser?.id)}
-                sx={{ 
-                  minWidth: isMobile ? 'auto' : '120px',
-                  flex: isMobile ? 1 : 'none',
-                  fontSize: isMobile ? '0.75rem' : '0.875rem'
-                }}
-              >
-                {isMobile ? (isClearing ? 'Clearing...' : 'Clear') : (isClearing ? 'Clearing...' : 'Clear Week')}
+              color="secondary"
+              size={isMobile ? "small" : "medium"}
+              onClick={handleBugFixingMenuOpen}
+              disabled={loading || (isScheduleLocked && lockedBy !== currentUser?.id)}
+              sx={{ 
+                minWidth: isMobile ? 'auto' : '120px',
+                flex: isMobile ? 1 : 'none',
+                fontSize: isMobile ? '0.75rem' : '0.875rem'
+              }}
+            >
+              {isMobile ? 'Bug Fix' : 'Bug Fixing'}
             </Button>
             <Button
               variant="contained"
@@ -2178,42 +2482,27 @@ function ScheduleBuilderTab() {
         </Box>
 
                    {/* Assignment Status Summary */}
-          {(() => {
-            const totalRoles = Object.values(weekSchedule).flatMap(day => 
-              day.shifts?.flatMap(shift => shift.required_roles || shift.requiredRoles || []) || []
-            ).length;
-            const assignedRoles = Object.values(weekSchedule).flatMap(day => 
-              day.shifts?.flatMap(shift => Object.values(shift.assignedStaff)) || []
-            ).length;
-            
-            if (totalRoles > 0) {
-              const unassignedCount = totalRoles - assignedRoles;
-              const statusText = `Assignment Status: ${assignedRoles}/${totalRoles} roles assigned${unassignedCount > 0 ? ` • ${unassignedCount} role${unassignedCount !== 1 ? 's' : ''} still need${unassignedCount === 1 ? 's' : ''} assignment` : ''}`;
-              
-              return (
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Tooltip title={statusText} arrow placement="top">
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      {unassignedCount === 0 ? (
-                        <Alert severity="success" sx={{ py: 0.5, px: 1, '& .MuiAlert-message': { py: 0 } }}>
-                          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                            ✓ All roles assigned
-                          </Typography>
-                        </Alert>
-                      ) : (
-                        <Alert severity="warning" sx={{ py: 0.5, px: 1, '& .MuiAlert-message': { py: 0 } }}>
-                          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                            ⚠ {unassignedCount} unassigned
-                          </Typography>
-                        </Alert>
-                      )}
-                    </Box>
-                  </Tooltip>
+          {roleCounts.totalRoles > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Tooltip title={`Assignment Status: ${roleCounts.assignedRoles}/${roleCounts.totalRoles} roles assigned${roleCounts.unassignedRoles > 0 ? ` • ${roleCounts.unassignedRoles} role${roleCounts.unassignedRoles !== 1 ? 's' : ''} still need${roleCounts.unassignedRoles === 1 ? 's' : ''} assignment` : ''}`} arrow placement="top">
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  {roleCounts.unassignedRoles === 0 ? (
+                    <Alert severity="success" sx={{ py: 0.5, px: 1, '& .MuiAlert-message': { py: 0 } }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                        ✓ All roles assigned
+                      </Typography>
+                    </Alert>
+                  ) : (
+                    <Alert severity="warning" sx={{ py: 0.5, px: 1, '& .MuiAlert-message': { py: 0 } }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                        ⚠ {roleCounts.unassignedRoles} unassigned
+                      </Typography>
+                    </Alert>
+                  )}
                 </Box>
-              );
-            }
-            return null;
-          })()}
+              </Tooltip>
+            </Box>
+          )}
 
                  <Box sx={{ display: 'flex', gap: 2 }}>
            {/* Main Schedule Content */}
@@ -2520,6 +2809,69 @@ function ScheduleBuilderTab() {
               Add Role
             </MenuItem>
          </Menu>
+
+        {/* Bug Fixing Menu */}
+        <Menu
+          anchorEl={bugFixingMenuAnchor}
+          open={Boolean(bugFixingMenuAnchor)}
+          onClose={handleBugFixingMenuClose}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'left',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'left',
+          }}
+          disableScrollLock={true}
+          disablePortal={true}
+        >
+          <MenuItem onClick={() => {
+            clearWeek();
+            handleBugFixingMenuClose();
+          }}>
+            <ListItemIcon>
+              <DeleteIcon fontSize="small" />
+            </ListItemIcon>
+            Clear Week
+          </MenuItem>
+          <MenuItem onClick={() => {
+            cleanInvalidAssignments();
+            handleBugFixingMenuClose();
+          }}>
+            <ListItemIcon>
+              <WarningIcon fontSize="small" />
+            </ListItemIcon>
+            Clean Invalid Assignments
+          </MenuItem>
+          <MenuItem onClick={() => {
+            checkDataIntegrity();
+            handleBugFixingMenuClose();
+          }}>
+            <ListItemIcon>
+              <RefreshIcon fontSize="small" />
+            </ListItemIcon>
+            Check Data Integrity
+          </MenuItem>
+          <MenuItem onClick={() => {
+            fixStaleRoleId();
+            handleBugFixingMenuClose();
+          }}>
+            <ListItemIcon>
+              <AutoFixHighIcon fontSize="small" />
+            </ListItemIcon>
+            Fix Stale Role ID
+          </MenuItem>
+          <MenuItem onClick={() => {
+            removeShiftsWithNoValidRoles();
+            handleBugFixingMenuClose();
+          }}>
+            <ListItemIcon>
+              <MergeIcon fontSize="small" />
+            </ListItemIcon>
+            Clean Bad Shifts
+          </MenuItem>
+        </Menu>
 
         {/* Conflict Resolution Dialog */}
         <Dialog open={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} maxWidth="sm" fullWidth>

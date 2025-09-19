@@ -16,7 +16,7 @@ import StaffDashboard from './components/StaffDashboard';
 import StaffRegistration from './components/StaffRegistration';
 import LoginForm from './components/LoginForm';
 import ProtectedRoute from './components/ProtectedRoute';
-import CSVImportTab from './components/CSVImportTab';
+import ICSImportTab from './components/ICSImportTab';
 import { DataProvider } from './context/DataContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -83,9 +83,9 @@ function App() {
                       <AccountManagementTab />
                     </ProtectedRoute>
                   } />
-                  <Route path="/csv-import" element={
+                  <Route path="/ics-import" element={
                     <ProtectedRoute requiredRole="manager">
-                      <CSVImportTab />
+                      <ICSImportTab />
                     </ProtectedRoute>
                   } />
                   

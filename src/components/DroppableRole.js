@@ -25,8 +25,6 @@ function DroppableRole({ role, assignedStaff, conflicts, onStaffDrop, onRemoveSt
   const [colorMenuAnchor, setColorMenuAnchor] = useState(null);
   const [selectedStaffId, setSelectedStaffId] = useState('');
   
-
-  
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'staff',
     drop: (item) => onStaffDrop(item.id),
@@ -36,6 +34,12 @@ function DroppableRole({ role, assignedStaff, conflicts, onStaffDrop, onRemoveSt
       canDrop: !!monitor.canDrop(),
     }),
   });
+
+  // Safety check for role object - after hooks
+  if (!role) {
+    console.error('DroppableRole: role object is undefined', { role, assignedStaff });
+    return null;
+  }
 
   const hasConflicts = conflicts && conflicts.length > 0;
 
@@ -281,36 +285,42 @@ function DroppableRole({ role, assignedStaff, conflicts, onStaffDrop, onRemoveSt
      return colorMap[color] || colorMap.gray;
    };
 
-   return (
-     <Tooltip title={roleName || 'Unknown Role'} arrow placement="top">
-       <Chip
-         ref={drag}
-         label={staff.name.split(' ')[0]}
-         size="small"
-         color={hasConflicts ? 'error' : 'success'}
-         variant="filled"
-         onClick={onColorClick}
-         sx={{
-           maxWidth: '100%',
-           cursor: 'grab',
-           bgcolor: getColorIcon(staffColor),
-           color: 'white',
-           fontWeight: 'bold',
-           opacity: isDragging ? 0.5 : 1,
-           '& .MuiChip-label': {
-             overflow: 'hidden',
-             textOverflow: 'ellipsis',
-           },
-           '&:hover': {
-             opacity: 0.8,
-           },
-           '&:active': {
-             cursor: 'grabbing',
-           },
-         }}
-       />
-     </Tooltip>
-   );
+  // Safety check for staff object
+  if (!staff || !staff.name) {
+    console.error('DroppableRole: staff object is undefined or missing name property', { staff, roleName });
+    return null;
+  }
+
+  return (
+    <Tooltip title={roleName || 'Unknown Role'} arrow placement="top">
+      <Chip
+        ref={drag}
+        label={staff.name.split(' ')[0]}
+        size="small"
+        color={hasConflicts ? 'error' : 'success'}
+        variant="filled"
+        onClick={onColorClick}
+        sx={{
+          maxWidth: '100%',
+          cursor: 'grab',
+          bgcolor: getColorIcon(staffColor),
+          color: 'white',
+          fontWeight: 'bold',
+          opacity: isDragging ? 0.5 : 1,
+          '& .MuiChip-label': {
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          },
+          '&:hover': {
+            opacity: 0.8,
+          },
+          '&:active': {
+            cursor: 'grabbing',
+          },
+        }}
+      />
+    </Tooltip>
+  );
  }
  
  export default DroppableRole;

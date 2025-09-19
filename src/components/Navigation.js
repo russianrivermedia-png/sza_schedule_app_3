@@ -25,7 +25,8 @@ import {
   Dashboard as DashboardIcon,
   Visibility as ViewerIcon,
   Build as BuilderIcon,
-  Storage as DataIcon
+  Storage as DataIcon,
+  Upload as UploadIcon
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -48,7 +49,7 @@ function Navigation() {
     { label: 'Shifts', path: '/shifts' },
     { label: 'Time Off', path: '/time-off' },
     { label: 'Accounts', path: '/accounts' },
-    { label: 'CSV Import', path: '/csv-import' },
+    { label: 'ICS Import', path: '/ics-import' },
   ];
 
   // Main tabs (role-based visibility)

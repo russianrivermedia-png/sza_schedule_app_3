@@ -836,7 +836,7 @@ function StaffDashboard() {
               }}>
                 <Typography variant={isMobile ? "subtitle1" : "h6"}>
                   Time Off Requests
-                </Typography>
+              </Typography>
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
@@ -866,10 +866,10 @@ function StaffDashboard() {
                             )}
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
                               {isWithinNextTwoWeeks(request.start_date) && (
-                                <Chip
+                    <Chip
                                   label="Short Notice"
                                   color="warning"
-                                  size="small"
+                      size="small"
                                   variant="outlined"
                                 />
                               )}
@@ -881,7 +881,7 @@ function StaffDashboard() {
                                   variant="outlined"
                                 />
                               )}
-                            </Box>
+                </Box>
                           </Box>
                         }
                       />
@@ -949,13 +949,13 @@ function StaffDashboard() {
                               <Box sx={{ flex: 1 }}>
                                 <Typography variant={isMobile ? "caption" : "body2"} sx={{ fontWeight: 'medium' }}>
                                   {shift.shiftName}
-                                </Typography>
+                            </Typography>
                                 <Typography variant={isMobile ? "caption" : "body2"} color="primary" sx={{ display: 'block' }}>
                                   {shift.role}
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: isMobile ? '0.65rem' : '0.75rem' }}>
                                   {shift.start_time}
-                                </Typography>
+                            </Typography>
                               </Box>
                               <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
                                 <IconButton
@@ -1015,21 +1015,21 @@ function StaffDashboard() {
                    <Typography variant={isMobile ? "subtitle1" : "h6"} gutterBottom>
                      <HelpOutline sx={{ mr: 1, verticalAlign: 'middle' }} />
                      {isMobile ? "Coverage" : "Coverage Requests"}
-                   </Typography>
+                </Typography>
                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: isMobile ? 'center' : 'left' }}>
                      {isMobile ? "Help with shifts" : "Cover requests (cover for someone) and Swap requests (trade shifts)"}
                    </Typography>
                  </Box>
-                 <Button
+                <Button
                    size="small"
-                   startIcon={<AddIcon />}
+                  startIcon={<AddIcon />}
                    onClick={handleOfferCoverageClick}
                    variant="contained"
                    sx={{ alignSelf: isMobile ? 'flex-start' : 'auto' }}
-                 >
+                >
                    {isMobile ? "Offer" : "Offer Coverage"}
-                 </Button>
-               </Box>
+                </Button>
+              </Box>
               
               {(getActiveRequests().length > 0 || coverageOffers.length > 0) ? (
                 <Grid container spacing={isMobile ? 1 : 2}>
@@ -1078,7 +1078,7 @@ function StaffDashboard() {
                           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                             <Chip 
                               label={request.type === 'cover' ? 'Cover' : 'Swap'} 
-                              size="small" 
+                            size="small"
                               color={request.type === 'cover' ? 'warning' : 'primary'}
                             />
                             {/* Show days until expiration */}
@@ -1120,7 +1120,7 @@ function StaffDashboard() {
                         {request.status === 'pending' ? (
                           <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
                             <Button 
-                              size="small" 
+                              size="small"
                               variant="contained" 
                               color="success"
                               onClick={() => handleAcceptRequest(request.id)}
@@ -1135,7 +1135,7 @@ function StaffDashboard() {
                             >
                               Decline
                             </Button>
-                          </Box>
+                        </Box>
                         ) : request.status === 'accepted' ? (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                             <Chip 
@@ -1204,9 +1204,9 @@ function StaffDashboard() {
                   textAlign: 'center',
                   bgcolor: 'background.paper'
                 }}>
-                  <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary">
                     No active coverage requests
-                  </Typography>
+                </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
                     When staff request coverage for their shifts, they will appear here. Requests expire after the shift date passes.
                   </Typography>
@@ -1517,11 +1517,11 @@ function StaffDashboard() {
            <Button onClick={() => setOfferCoverageDialogOpen(false)}>Cancel</Button>
            <Button onClick={handleOfferCoverageSubmit} variant="contained" disabled={!offerCoverageForm.date}>
              Submit Offer
-           </Button>
-         </DialogActions>
-       </Dialog>
-     </Box>
-   );
- }
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
 
 export default StaffDashboard;
