@@ -28,6 +28,10 @@ import {
   AccordionDetails,
   Tooltip,
   Divider,
+  ToggleButton,
+  ToggleButtonGroup,
+  Paper,
+  Grid,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -37,7 +41,15 @@ import {
   Check as CheckIcon,
   Close as CloseIcon,
   CalendarToday as CalendarIcon,
+  ViewList as ListIcon,
+  CalendarMonth as CalendarMonthIcon,
+  CheckCircle as ApproveIcon,
+  Cancel as DenyIcon,
 } from '@mui/icons-material';
+import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { PickersDay } from '@mui/x-date-pickers/PickersDay';
 import { format, isAfter, isBefore, addDays, differenceInDays } from 'date-fns';
 import { useData } from '../context/DataContext';
 import { timeOffHelpers } from '../lib/supabaseHelpers';
@@ -46,6 +58,8 @@ function TimeOffRequestsTab() {
   const { timeOffRequests, staff, roles, dispatch } = useData();
   const [openDialog, setOpenDialog] = useState(false);
   const [editingRequest, setEditingRequest] = useState(null);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [timeOffForm, setTimeOffForm] = useState({
     staffId: '',
     startDate: '',
@@ -104,6 +118,70 @@ function TimeOffRequestsTab() {
   const getStaffName = (staffId) => {
     const staffMember = staff.find(s => s.id === staffId);
     return staffMember ? staffMember.name : 'Unknown';
+  };
+
+  // Calendar view helper functions
+  const getStaffColor = (staffId) => {
+    const staffMember = staff.find(s => s.id === staffId);
+    if (!staffMember) return '#757575';
+    
+    // Use staff color if available, otherwise generate a color based on name
+    if (staffMember.color) return staffMember.color;
+    
+    // Generate a consistent color based on staff name
+    const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
+    const index = staffMember.name.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+
+  const getRequestsForDate = (date) => {
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
+    
+    return timeOffRequests.filter(request => {
+      const startDate = new Date(request.start_date);
+      const endDate = new Date(request.end_date);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+      
+      return targetDate >= startDate && targetDate <= endDate;
+    });
+  };
+
+  const getRequestsForMonth = (date) => {
+    const month = date.getMonth();
+    const year = date.getFullYear();
+    
+    return timeOffRequests.filter(request => {
+      const startDate = new Date(request.start_date);
+      const endDate = new Date(request.end_date);
+      
+      // Check if request overlaps with the month
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      
+      return (startDate <= monthEnd && endDate >= monthStart);
+    });
+  };
+
+  // Helper function to get highlighting info for a specific date
+  const getDateHighlightInfo = (date) => {
+    const requests = getRequestsForDate(date);
+    if (requests.length === 0) return null;
+
+    const approvedCount = requests.filter(r => r.status === 'approved').length;
+    const pendingCount = requests.filter(r => r.status === 'pending').length;
+    const totalCount = requests.length;
+
+    return {
+      hasRequests: true,
+      approvedCount,
+      pendingCount,
+      totalCount,
+      // Color priority: if any approved, use approved color, otherwise pending
+      isApproved: approvedCount > 0,
+      isMixed: approvedCount > 0 && pendingCount > 0
+    };
   };
 
   const handleOpenDialog = (request = null) => {
@@ -167,25 +245,6 @@ function TimeOffRequestsTab() {
     }
   };
 
-  const handleApprove = async (requestId) => {
-    try {
-      const updatedRequest = await timeOffHelpers.update(requestId, { status: 'approved' });
-      dispatch({ type: 'UPDATE_TIME_OFF_REQUEST', payload: updatedRequest });
-    } catch (error) {
-      console.error('Error approving time off request:', error);
-      alert(`Error approving request: ${error.message}`);
-    }
-  };
-
-  const handleDeny = async (requestId) => {
-    try {
-      const updatedRequest = await timeOffHelpers.update(requestId, { status: 'denied' });
-      dispatch({ type: 'UPDATE_TIME_OFF_REQUEST', payload: updatedRequest });
-    } catch (error) {
-      console.error('Error denying time off request:', error);
-      alert(`Error denying request: ${error.message}`);
-    }
-  };
 
   const handleDelete = async (requestId) => {
     if (!window.confirm('Are you sure you want to delete this time off request?')) return;
@@ -199,26 +258,117 @@ function TimeOffRequestsTab() {
     }
   };
 
+  const handleApprove = async (requestId) => {
+    console.log('🟢 APPROVING REQUEST:', requestId);
+    try {
+      const result = await timeOffHelpers.update(requestId, { status: 'approved' });
+      console.log('✅ APPROVE SUCCESS:', result);
+      dispatch({ type: 'UPDATE_TIME_OFF_REQUEST', payload: result });
+    } catch (error) {
+      console.error('❌ APPROVE ERROR:', error);
+      alert(`Error approving request: ${error.message}`);
+    }
+  };
+
+  const handleDeny = async (requestId) => {
+    console.log('🔴 DENYING REQUEST:', requestId);
+    try {
+      const result = await timeOffHelpers.update(requestId, { status: 'denied' });
+      console.log('✅ DENY SUCCESS:', result);
+      dispatch({ type: 'UPDATE_TIME_OFF_REQUEST', payload: result });
+    } catch (error) {
+      console.error('❌ DENY ERROR:', error);
+      alert(`Error denying request: ${error.message}`);
+    }
+  };
+
   const currentRequests = timeOffRequests.filter(isRequestCurrent);
   const futureRequests = timeOffRequests.filter(isRequestFuture);
   const pastRequests = timeOffRequests.filter(isRequestPast);
+
+  // Custom day component for highlighting
+  const CustomPickersDay = (props) => {
+    const { day, ...other } = props;
+    const highlightInfo = getDateHighlightInfo(day);
+    
+    if (!highlightInfo) {
+      return <PickersDay {...other} day={day} />;
+    }
+
+    const { isApproved, isMixed, totalCount } = highlightInfo;
+    
+    let backgroundColor = '#e3f2fd'; // Light blue for pending
+    let borderColor = '#2196f3'; // Blue border for pending
+    
+    if (isApproved && !isMixed) {
+      backgroundColor = '#e8f5e8'; // Light green for approved only
+      borderColor = '#4caf50'; // Green border for approved only
+    } else if (isMixed) {
+      backgroundColor = '#fff3e0'; // Light orange for mixed
+      borderColor = '#ff9800'; // Orange border for mixed
+    }
+
+    return (
+      <PickersDay
+        {...other}
+        day={day}
+        sx={{
+          backgroundColor,
+          border: `2px solid ${borderColor}`,
+          borderRadius: '50%',
+          '&:hover': {
+            backgroundColor: isApproved ? '#c8e6c9' : '#bbdefb',
+          },
+          '&.Mui-selected': {
+            backgroundColor: isApproved ? '#4caf50' : '#2196f3',
+            color: 'white',
+            '&:hover': {
+              backgroundColor: isApproved ? '#45a049' : '#1976d2',
+            },
+          },
+        }}
+      />
+    );
+  };
 
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4">Time Off Requests</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog()}
-          sx={{ bgcolor: 'primary.main', '&:hover': { bgcolor: 'primary.dark' } }}
-        >
-          Add Time Off Request
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(event, newViewMode) => {
+              if (newViewMode !== null) {
+                setViewMode(newViewMode);
+              }
+            }}
+            size="small"
+          >
+            <ToggleButton value="list">
+              <ListIcon />
+            </ToggleButton>
+            <ToggleButton value="calendar">
+              <CalendarMonthIcon />
+            </ToggleButton>
+          </ToggleButtonGroup>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenDialog()}
+            sx={{ bgcolor: 'primary.main', '&:hover': { bgcolor: 'primary.dark' } }}
+          >
+            Add Time Off Request
+          </Button>
+        </Box>
       </Box>
 
-      {/* Current Time Off Requests */}
-      <Accordion defaultExpanded>
+      {/* View Toggle Content */}
+      {viewMode === 'list' ? (
+        <>
+          {/* Current Time Off Requests */}
+          <Accordion defaultExpanded>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6" color="primary">
             Current Time Off ({currentRequests.length})
@@ -458,6 +608,203 @@ function TimeOffRequestsTab() {
           )}
         </AccordionDetails>
       </Accordion>
+        </>
+      ) : (
+        /* Calendar View */
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={8}>
+              <Paper sx={{ p: 2 }}>
+                <DateCalendar
+                  value={selectedDate}
+                  onChange={(newDate) => setSelectedDate(newDate)}
+                  sx={{ width: '100%' }}
+                  slots={{ day: CustomPickersDay }}
+                />
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 2, height: 'fit-content' }}>
+                <Typography variant="h6" gutterBottom>
+                  Time Off for {format(selectedDate, 'MMM dd, yyyy')}
+                </Typography>
+                {getRequestsForDate(selectedDate).length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No time off requests for this date
+                  </Typography>
+                ) : (
+                  <List dense>
+                    {getRequestsForDate(selectedDate).map((request) => (
+                      <ListItem key={request.id} sx={{ px: 0 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                          <Box
+                            sx={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: '50%',
+                              backgroundColor: getStaffColor(request.staff_id),
+                              mr: 1,
+                              flexShrink: 0
+                            }}
+                          />
+                          <ListItemText
+                            primary={getStaffName(request.staff_id)}
+                            secondary={
+                              <Box>
+                                <Typography variant="body2" color="text.secondary">
+                                  {format(new Date(request.start_date), 'MMM dd')} - {format(new Date(request.end_date), 'MMM dd, yyyy')}
+                                </Typography>
+                                {request.reason && (
+                                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                    "{request.reason}"
+                                  </Typography>
+                                )}
+                                <Chip 
+                                  label={request.status} 
+                                  color={request.status === 'approved' ? 'success' : request.status === 'denied' ? 'error' : 'warning'} 
+                                  size="small" 
+                                  sx={{ mt: 0.5 }}
+                                />
+                              </Box>
+                            }
+                          />
+                          {request.status === 'pending' && (
+                            <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                              <Tooltip title="Approve">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    console.log('🟢 APPROVE BUTTON CLICKED for request:', request.id);
+                                    handleApprove(request.id);
+                                  }}
+                                  color="success"
+                                  sx={{ 
+                                    '&:hover': { 
+                                      backgroundColor: 'success.light',
+                                      color: 'white'
+                                    }
+                                  }}
+                                >
+                                  <ApproveIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Deny">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    console.log('🔴 DENY BUTTON CLICKED for request:', request.id);
+                                    handleDeny(request.id);
+                                  }}
+                                  color="error"
+                                  sx={{ 
+                                    '&:hover': { 
+                                      backgroundColor: 'error.light',
+                                      color: 'white'
+                                    }
+                                  }}
+                                >
+                                  <DenyIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          )}
+                        </Box>
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </Paper>
+            </Grid>
+          </Grid>
+          
+          {/* Staff Legend */}
+          <Paper sx={{ p: 2, mt: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Staff Legend
+            </Typography>
+            <Grid container spacing={1}>
+              {staff.map((staffMember) => (
+                <Grid item key={staffMember.id}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box
+                      sx={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        backgroundColor: getStaffColor(staffMember.id),
+                        flexShrink: 0
+                      }}
+                    />
+                    <Typography variant="body2">
+                      {staffMember.name}
+                    </Typography>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
+
+          {/* Calendar Legend */}
+          <Paper sx={{ p: 2, mt: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Calendar Legend
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      backgroundColor: '#e8f5e8',
+                      border: '2px solid #4caf50',
+                      flexShrink: 0
+                    }}
+                  />
+                  <Typography variant="body2">
+                    Approved Time Off
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      backgroundColor: '#e3f2fd',
+                      border: '2px solid #2196f3',
+                      flexShrink: 0
+                    }}
+                  />
+                  <Typography variant="body2">
+                    Pending Time Off
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      backgroundColor: '#fff3e0',
+                      border: '2px solid #ff9800',
+                      flexShrink: 0
+                    }}
+                  />
+                  <Typography variant="body2">
+                    Mixed (Approved + Pending)
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+        </LocalizationProvider>
+      )}
 
       {/* Time Off Request Dialog */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>

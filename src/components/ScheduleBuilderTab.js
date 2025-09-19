@@ -1426,7 +1426,7 @@ function ScheduleBuilderTab() {
     console.log('🔍 Current roles available:', roles.map(r => ({ id: r.id, name: r.name })));
     
     let updatedSchedules = 0;
-    let updatedShifts = 0;
+    let fixedShiftsCount = 0;
     
     // Process all schedules
     for (const schedule of schedules) {
@@ -1458,7 +1458,7 @@ function ScheduleBuilderTab() {
             }
             
             dayUpdated = true;
-            updatedShifts++;
+            fixedShiftsCount++;
             
             return {
               ...shift,
@@ -1502,7 +1502,7 @@ function ScheduleBuilderTab() {
     
     console.log(`🎉 STALE ROLE CLEANUP COMPLETE:`);
     console.log(`   - Updated ${updatedSchedules} schedules`);
-    console.log(`   - Fixed ${updatedShifts} shifts`);
+    console.log(`   - Fixed ${fixedShiftsCount} shifts`);
     
     // Reload data to reflect changes
     if (updatedSchedules > 0) {
