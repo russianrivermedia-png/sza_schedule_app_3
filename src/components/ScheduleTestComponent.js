@@ -28,11 +28,21 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Menu,
+  ListItemIcon,
+  ListItemText,
   Chip as MuiChip,
   OutlinedInput,
   Box as MuiBox,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
 } from '@mui/material';
 import {
   ChevronLeft as ChevronLeftIcon,
@@ -47,7 +57,10 @@ import {
   Person as PersonIcon,
   Warning as WarningIcon,
   AutoFixHigh as AutoAssignIcon,
-  CheckCircle as CheckCircleIcon
+  CheckCircle as CheckCircleIcon,
+  LibraryBooks as TemplateIcon,
+  MoreVert as MoreVertIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { useData } from '../context/DataContext';
@@ -56,6 +69,8 @@ import { useSchedulePersistence } from '../hooks/useSchedulePersistence';
 import { shiftHelpers } from '../lib/supabaseHelpers';
 import DraggableStaff from './DraggableStaff';
 import DroppableRoleTest from './DroppableRoleTest';
+import TourDisplay from './TourDisplay';
+import { getTourColorValue } from '../config/tourColors';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -79,6 +94,7 @@ function ScheduleTestComponent() {
   
   // Dialog states
   const [openShiftDialog, setOpenShiftDialog] = useState(false);
+  const [openCustomShiftDialog, setOpenCustomShiftDialog] = useState(false);
   const [openNotesDialog, setOpenNotesDialog] = useState(false);
   const [openStaffSelectionDialog, setOpenStaffSelectionDialog] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -110,6 +126,17 @@ function ScheduleTestComponent() {
   const [selectedRoles, setSelectedRoles] = useState([]);
   const [selectedTours, setSelectedTours] = useState([]);
   const [isTeamEvent, setIsTeamEvent] = useState(false);
+  
+  // Day template state
+  const [openTemplateDialog, setOpenTemplateDialog] = useState(false);
+  const [openLoadTemplateDialog, setOpenLoadTemplateDialog] = useState(false);
+  const [dayTemplates, setDayTemplates] = useState([]);
+  const [templateName, setTemplateName] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  
+  // Day actions menu state
+  const [dayActionsMenuAnchor, setDayActionsMenuAnchor] = useState(null);
+  const [selectedDayForActions, setSelectedDayForActions] = useState(null);
   
   // Test the new hooks
   const {
@@ -236,16 +263,30 @@ function ScheduleTestComponent() {
         ...prev[dayKey],
         shifts: [
           ...(prev[dayKey]?.shifts || []),
-          ...selectedShiftTemplates.map(shift => ({
-            id: `${shift.id}-${Date.now()}`,
-            name: shift.name,
-            shiftId: shift.id,
-            startTime: shift.startTime,
-            endTime: shift.endTime,
-            notes: '',
-            required_roles: shift.required_roles || [],
-            assignedStaff: {}
-          }))
+          ...selectedShiftTemplates.map(shift => {
+            // Initialize tour colors with default colors from tours
+            const tourColors = {};
+            if (shift.tours && shift.tours.length > 0) {
+              const shiftTours = tours?.filter(tour => shift.tours.includes(tour.id)) || [];
+              shiftTours.forEach(tour => {
+                tourColors[tour.id] = tour.default_color || 'default';
+              });
+            }
+            
+            return {
+              id: `${shift.id}-${Date.now()}`,
+              name: shift.name,
+              shiftId: shift.id,
+              startTime: shift.startTime,
+              endTime: shift.endTime,
+              notes: '',
+              required_roles: shift.required_roles || [],
+              tours: shift.tours || [],
+              tourColors,
+              arrivalTime: shift.default_starting_time || '',
+              assignedStaff: {}
+            };
+          })
         ]
       }
     }));
@@ -291,6 +332,15 @@ function ScheduleTestComponent() {
         }
       }
 
+      // Initialize tour colors with default colors from tours
+      const tourColors = {};
+      if (newShiftTemplate.tours && newShiftTemplate.tours.length > 0) {
+        const shiftTours = tours?.filter(tour => newShiftTemplate.tours.includes(tour.id)) || [];
+        shiftTours.forEach(tour => {
+          tourColors[tour.id] = tour.default_color || 'default';
+        });
+      }
+
       const newShiftInstance = {
         id: `${newShiftTemplate.id}-${Date.now()}`,
         shiftId: newShiftTemplate.id,
@@ -298,6 +348,7 @@ function ScheduleTestComponent() {
         description: newShiftTemplate.description,
         required_roles: newShiftTemplate.required_roles,
         tours: newShiftTemplate.tours || [],
+        tourColors,
         assignedStaff,
         arrivalTime: newShiftTemplate.default_starting_time || '',
         notes: '',
@@ -374,6 +425,327 @@ function ScheduleTestComponent() {
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  // Render schedule table similar to main builder
+  const renderScheduleTable = (day, dayIndex) => {
+    const dayKey = format(day, 'yyyy-MM-dd');
+    const daySchedule = localSchedule[dayKey] || { shifts: [] };
+
+    if (daySchedule.shifts.length === 0) {
+      return (
+        <Box sx={{ textAlign: 'center', py: 2 }}>
+          <Typography color="text.secondary">
+            No shifts scheduled
+          </Typography>
+        </Box>
+      );
+    }
+
+    // Separate shifts with tours from those without and sort alphabetically
+    const shiftsWithTours = daySchedule.shifts
+      .filter(shift => (shift.tours || []).length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const shiftsWithoutTours = daySchedule.shifts
+      .filter(shift => (shift.tours || []).length === 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return (
+      <Box>
+        {/* Tour-based shifts (Guiding Shifts) in table format */}
+        {shiftsWithTours.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1, color: 'primary.main', fontWeight: 'bold' }}>
+              Guiding Shifts
+            </Typography>
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell width="12%">Arrival Time</TableCell>
+                    <TableCell width="20%">Shift Title</TableCell>
+                    <TableCell width="35%">Staff Assigned</TableCell>
+                    <TableCell width="25%">Tours</TableCell>
+                    <TableCell width="8%">Notes</TableCell>
+                    <TableCell width="8%">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+              <TableBody>
+                {shiftsWithTours.map((shift, shiftIndex) => {
+                  // Find the actual index in the original daySchedule.shifts array
+                  const actualShiftIndex = daySchedule.shifts.findIndex(s => s.id === shift.id);
+                  const hasNotes = shift.notes && shift.notes.trim().length > 0;
+
+                  return (
+                    <React.Fragment key={shift.id}>
+                      <TableRow>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            value={shift.arrivalTime || ''}
+                            onChange={(e) => {
+                              updateLocalSchedule(prev => ({
+                                ...prev,
+                                [dayKey]: {
+                                  ...prev[dayKey],
+                                  shifts: prev[dayKey].shifts.map((s, index) => 
+                                    index === actualShiftIndex 
+                                      ? { ...s, arrivalTime: e.target.value }
+                                      : s
+                                  )
+                                }
+                              }));
+                            }}
+                            placeholder="9:00 AM"
+                            sx={{ width: '100%' }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" fontWeight="bold">
+                              {shift.name}
+                            </Typography>
+                            {shift.isTeamEvent && (
+                              <Chip
+                                label="Team Event"
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                                sx={{ fontSize: '0.6rem', height: 20 }}
+                              />
+                            )}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {(shift.required_roles || shift.requiredRoles || []).map(roleId => {
+                              const role = getRoleById(roleId);
+                              
+                              if (!role) {
+                                console.error('🚨 UNDEFINED ROLE DETECTED (with tours):', {
+                                  roleId,
+                                  shiftName: shift.name,
+                                  day: format(day, 'yyyy-MM-dd'),
+                                  availableRoles: roles.map(r => ({ id: r.id, name: r.name })),
+                                  totalRoles: roles.length
+                                });
+                                return null;
+                              }
+                              
+                              const assignedStaffId = shift.assignedStaff?.[roleId];
+                              const assignedStaff = getStaffById(assignedStaffId);
+                              const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
+                              
+                              return (
+                                <Box key={roleId} sx={{ mb: 1 }}>
+                                  <DroppableRoleTest
+                                    role={role}
+                                    assignedStaff={assignedStaff}
+                                    conflicts={conflicts}
+                                    onStaffDrop={(staffId, sourceInfo) => handleStaffDrop(day, actualShiftIndex, roleId, staffId, sourceInfo)}
+                                    onRemoveStaff={() => removeStaffAssignment(dayKey, actualShiftIndex, roleId)}
+                                    staff={staff || []}
+                                    roles={roles || []}
+                                    timeOffRequests={timeOffRequests || []}
+                                    day={day}
+                                    shiftIndex={actualShiftIndex}
+                                    onStaffColorChange={() => {}} // Not implemented in test component
+                                    staffColor="gray"
+                                    onOpenStaffSelection={handleOpenStaffSelection}
+                                  />
+                                  {!assignedStaffId && (
+                                    <Chip
+                                      label="Unassigned"
+                                      size="small"
+                                      color="warning"
+                                      variant="outlined"
+                                      sx={{ mt: 0.5, fontSize: '0.7rem' }}
+                                    />
+                                  )}
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <TourDisplay
+                            tours={getShiftTours(shift)}
+                            tourColors={shift.tourColors}
+                            onTourColorChange={(tourId, color) => handleTourColorChange(day, actualShiftIndex, tourId, color)}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {hasNotes && (
+                            <Tooltip title={shift.notes} arrow>
+                              <IconButton
+                                size="small"
+                                color="warning"
+                                onClick={() => handleOpenNotesDialog(day, actualShiftIndex, shift)}
+                              >
+                                <NotesIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleOpenNotesDialog(day, actualShiftIndex, shift)}
+                            sx={{ mr: 0.5 }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteShift(dayKey, actualShiftIndex)}
+                            sx={{ color: 'error.main' }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    </React.Fragment>
+                  );
+                })}
+              </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+
+        {/* Non-tour shifts in compact boxes */}
+        {shiftsWithoutTours.length > 0 && (
+          <Box sx={{ mt: 3 }}>
+            <Divider sx={{ mb: 2 }} />
+            <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary', fontWeight: 'bold' }}>
+              Other Shifts
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {shiftsWithoutTours.map((shift) => {
+                // Find the actual index in the original daySchedule.shifts array
+                const actualShiftIndex = daySchedule.shifts.findIndex(s => s.id === shift.id);
+                const hasNotes = shift.notes && shift.notes.trim().length > 0;
+                
+                return (
+                  <Box
+                    key={shift.id}
+                    sx={{
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      p: 1.5,
+                      minWidth: 250,
+                      bgcolor: 'background.paper',
+                      position: 'relative',
+                    }}
+                  >
+                    {/* Actions menu for non-tour shifts */}
+                    <IconButton
+                      size="small"
+                      sx={{ position: 'absolute', top: 4, right: 4 }}
+                      onClick={() => handleOpenNotesDialog(day, actualShiftIndex, shift)}
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      sx={{ position: 'absolute', top: 4, right: 32, color: 'error.main' }}
+                      onClick={() => handleDeleteShift(dayKey, actualShiftIndex)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, pr: 6 }}>
+                      <TextField
+                        size="small"
+                        value={shift.arrivalTime || ''}
+                        onChange={(e) => {
+                          updateLocalSchedule(prev => ({
+                            ...prev,
+                            [dayKey]: {
+                              ...prev[dayKey],
+                              shifts: prev[dayKey].shifts.map((s, index) => 
+                                index === actualShiftIndex 
+                                  ? { ...s, arrivalTime: e.target.value }
+                                  : s
+                              )
+                            }
+                          }));
+                        }}
+                        placeholder="9:00 AM"
+                        sx={{ width: 80 }}
+                      />
+                      <Typography variant="body2" fontWeight="medium">
+                        {shift.name}
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+                      {(shift.required_roles || shift.requiredRoles || []).map(roleId => {
+                        const role = getRoleById(roleId);
+                        
+                        if (!role) {
+                          console.error('🚨 UNDEFINED ROLE DETECTED:', {
+                            roleId,
+                            shiftName: shift.name,
+                            day: format(day, 'yyyy-MM-dd'),
+                            availableRoles: roles.map(r => ({ id: r.id, name: r.name })),
+                            totalRoles: roles.length
+                          });
+                          return null;
+                        }
+                        
+                        const assignedStaffId = shift.assignedStaff?.[roleId];
+                        const assignedStaff = getStaffById(assignedStaffId);
+                        const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
+                        
+                        return (
+                          <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <DroppableRoleTest
+                              role={role}
+                              assignedStaff={assignedStaff}
+                              conflicts={conflicts}
+                              onStaffDrop={(staffId, sourceInfo) => handleStaffDrop(day, actualShiftIndex, roleId, staffId, sourceInfo)}
+                              onRemoveStaff={() => removeStaffAssignment(dayKey, actualShiftIndex, roleId)}
+                              staff={staff || []}
+                              roles={roles || []}
+                              timeOffRequests={timeOffRequests || []}
+                              day={day}
+                              shiftIndex={actualShiftIndex}
+                              onStaffColorChange={() => {}} // Not implemented in test component
+                              staffColor="gray"
+                              onOpenStaffSelection={handleOpenStaffSelection}
+                            />
+                            {!assignedStaffId && (
+                              <Chip
+                                label="Unassigned"
+                                size="small"
+                                color="warning"
+                                variant="outlined"
+                                sx={{ fontSize: '0.7rem' }}
+                              />
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Box>
+
+                    {hasNotes && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {shift.notes}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
+          </Box>
+        )}
+      </Box>
+    );
   };
 
   // Enhanced staff assignment functions with swapping support
@@ -599,6 +971,175 @@ function ScheduleTestComponent() {
         )
       }
     }));
+  };
+
+  // Tour color change handler
+  const handleTourColorChange = (day, shiftIndex, tourId, color) => {
+    const dayKey = format(day, 'yyyy-MM-dd');
+    updateLocalSchedule(prev => ({
+      ...prev,
+      [dayKey]: {
+        ...prev[dayKey],
+        shifts: prev[dayKey].shifts.map((shift, index) => 
+          index === shiftIndex 
+            ? { 
+                ...shift, 
+                tourColors: { 
+                  ...shift.tourColors, 
+                  [tourId]: color 
+                } 
+              }
+            : shift
+        )
+      }
+    }));
+  };
+
+  // Helper function to parse time from tour name (e.g., "9:00 AM" -> 540 minutes)
+  const parseTimeFromTourName = (tourName) => {
+    // Match patterns like "9:00 AM", "2:30 PM", "12:15 PM", etc.
+    const timeMatch = tourName.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!timeMatch) {
+      console.log(`⚠️ Could not parse time from tour name: "${tourName}"`);
+      return 0; // Default to midnight if no time found
+    }
+    
+    const [, hours, minutes, period] = timeMatch;
+    let totalMinutes = parseInt(hours) * 60 + parseInt(minutes);
+    
+    // Convert to 24-hour format
+    if (period.toUpperCase() === 'PM' && hours !== '12') {
+      totalMinutes += 12 * 60;
+    } else if (period.toUpperCase() === 'AM' && hours === '12') {
+      totalMinutes -= 12 * 60;
+    }
+    
+    console.log(`🕐 Parsed "${tourName}" -> ${totalMinutes} minutes (${hours}:${minutes} ${period})`);
+    return totalMinutes;
+  };
+
+  // Helper function to get tours for a shift
+  const getShiftTours = (shift) => {
+    if (!shift.tours || shift.tours.length === 0) return [];
+    
+    // Get tour objects from the global tours array
+    const shiftTours = shift.tours.map(tourId => 
+      tours?.find(tour => tour.id === tourId)
+    ).filter(Boolean); // Remove any undefined tours
+    
+    console.log(`🔍 Sorting tours for shift "${shift.name}":`, shiftTours.map(t => t.name));
+    
+    // Sort tours by time (morning to evening) for chronological display order
+    const sortedTours = shiftTours.sort((a, b) => {
+      const timeA = parseTimeFromTourName(a.name);
+      const timeB = parseTimeFromTourName(b.name);
+      console.log(`📊 Comparing "${a.name}" (${timeA}) vs "${b.name}" (${timeB}) -> ${timeA - timeB}`);
+      return timeA - timeB;
+    });
+    
+    console.log(`✅ Final sorted order:`, sortedTours.map(t => t.name));
+    return sortedTours;
+  };
+
+  // Template management functions
+  const handleSaveAsTemplate = (day) => {
+    const dayKey = format(day, 'yyyy-MM-dd');
+    const daySchedule = localSchedule[dayKey];
+    
+    if (!daySchedule || !daySchedule.shifts || daySchedule.shifts.length === 0) {
+      alert('No shifts to save as template for this day.');
+      return;
+    }
+    
+    setSelectedDay(day);
+    setOpenTemplateDialog(true);
+  };
+
+  const handleSaveTemplate = () => {
+    if (!templateName.trim()) {
+      alert('Please enter a template name.');
+      return;
+    }
+    
+    const dayKey = format(selectedDay, 'yyyy-MM-dd');
+    const daySchedule = localSchedule[dayKey];
+    
+    const newTemplate = {
+      id: `template_${Date.now()}`,
+      name: templateName.trim(),
+      dayOfWeek: format(selectedDay, 'EEEE'),
+      shifts: daySchedule.shifts.map(shift => ({
+        ...shift,
+        id: `template_${shift.id}`, // Change ID to avoid conflicts
+        assignedStaff: {} // Clear staff assignments for template
+      })),
+      createdAt: new Date().toISOString()
+    };
+    
+    setDayTemplates(prev => [...prev, newTemplate]);
+    setTemplateName('');
+    setOpenTemplateDialog(false);
+    setSelectedDay(null);
+    
+    alert(`Template "${newTemplate.name}" saved successfully!`);
+  };
+
+  const handleLoadTemplate = (template) => {
+    if (!selectedDay) {
+      alert('Please select a day first.');
+      return;
+    }
+    
+    const dayKey = format(selectedDay, 'yyyy-MM-dd');
+    const daySchedule = localSchedule[dayKey] || { shifts: [] };
+    
+    // Add template shifts to the selected day
+    const templateShifts = template.shifts.map(shift => ({
+      ...shift,
+      id: `${shift.id}_${Date.now()}`, // Generate new unique ID
+      assignedStaff: {} // Clear staff assignments
+    }));
+    
+    updateLocalSchedule(prev => ({
+      ...prev,
+      [dayKey]: {
+        ...daySchedule,
+        shifts: [...daySchedule.shifts, ...templateShifts]
+      }
+    }));
+    
+    setOpenLoadTemplateDialog(false);
+    setSelectedTemplate(null);
+    
+    alert(`Template "${template.name}" loaded successfully!`);
+  };
+
+  // Day actions menu handlers
+  const handleDayActionsMenuOpen = (event, day) => {
+    setDayActionsMenuAnchor(event.currentTarget);
+    setSelectedDayForActions(day);
+  };
+
+  const handleDayActionsMenuClose = () => {
+    setDayActionsMenuAnchor(null);
+    setSelectedDayForActions(null);
+  };
+
+  const handleCreateCustomShiftFromMenu = () => {
+    setSelectedDay(selectedDayForActions);
+    setOpenCustomShiftDialog(true);
+    handleDayActionsMenuClose();
+  };
+
+  const handleSaveTemplateFromMenu = () => {
+    handleSaveAsTemplate(selectedDayForActions);
+    handleDayActionsMenuClose();
+  };
+
+  const handleLoadTemplateFromMenu = () => {
+    setSelectedDay(selectedDayForActions);
+    setOpenLoadTemplateDialog(true);
+    handleDayActionsMenuClose();
   };
 
   // Staff filtering function for the selection dialog
@@ -1061,6 +1602,7 @@ function ScheduleTestComponent() {
           >
             {isAutoAssigning ? (isMobile ? 'Assigning...' : 'Auto Assigning...') : (isMobile ? 'Auto Assign' : 'Auto Assign Staff')}
           </Button>
+          
         </Box>
         
         <Alert severity={hasUnsavedChanges ? 'warning' : 'success'} sx={{ mb: 2 }}>
@@ -1091,199 +1633,108 @@ function ScheduleTestComponent() {
           const dayOfWeek = DAYS_OF_WEEK[dayIndex];
           
           return (
-            <Grid 
-              item 
-              xs={12} 
-              sm={6} 
-              md={4} 
-              lg={3} 
-              xl={2} 
-              key={dayKey}
-            >
-              <Card sx={{ height: '100%' }}>
+            <Grid item xs={12} key={dayKey}>
+              <Card>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography 
-                      variant={isMobile ? "subtitle1" : "h6"}
-                      sx={{ fontWeight: 'bold' }}
-                    >
-                      {isMobile ? format(day, 'EEE') : dayOfWeek}
+                    <Typography variant="h6">
+                      {dayOfWeek} - {format(day, 'MMM d')}
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      <Tooltip title="Add shifts to this day">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setSelectedDay(day);
-                            setOpenShiftDialog(true);
-                          }}
-                          sx={{ 
-                            fontSize: isMobile ? '0.7rem' : '0.75rem',
-                            color: 'primary.main'
-                          }}
-                        >
-                          <AddCircleIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      {/* Add Shifts Button - Primary action, keep visible */}
                       <Button
                         size="small"
+                        startIcon={<AddCircleIcon />}
+                        onClick={() => {
+                          setSelectedDay(day);
+                          setOpenShiftDialog(true);
+                        }}
                         variant="outlined"
-                        color="error"
-                        onClick={() => handleClearDay(dayKey)}
-                        disabled={!dayData.shifts || dayData.shifts.length === 0}
                         sx={{ 
-                          fontSize: isMobile ? '0.7rem' : '0.75rem',
-                          minWidth: 'auto',
-                          px: isMobile ? 0.5 : 1
+                          fontSize: isMobile ? '0.75rem' : '0.875rem',
+                          px: isMobile ? 1 : 1.5
                         }}
                       >
-                        {isMobile ? 'Clear' : 'Clear Day'}
+                        {isMobile ? 'Add' : 'Add Shifts'}
                       </Button>
+                      
+                      {/* Day Actions Dropdown Menu */}
+                      <IconButton
+                        size="small"
+                        onClick={(event) => handleDayActionsMenuOpen(event, day)}
+                        sx={{ 
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          '&:hover': {
+                            backgroundColor: 'action.hover'
+                          }
+                        }}
+                      >
+                        <MoreVertIcon fontSize="small" />
+                      </IconButton>
                     </Box>
                   </Box>
-                  
-                  <Typography 
-                    variant="body2" 
-                    color="text.secondary" 
-                    gutterBottom
-                    sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
-                  >
-                    {isMobile ? format(day, 'M/d') : format(day, 'MMM d')} • {dayData.shifts?.length || 0} shifts
-                  </Typography>
-                  
-                  <Box sx={{ minHeight: 60 }}>
-                    {dayData.shifts?.map((shift, shiftIndex) => {
-                      const hasNotes = shift.notes && shift.notes.trim().length > 0;
-                      const notesKey = `${dayKey}-${shiftIndex}`;
-                      const isExpanded = expandedNotes[notesKey];
-                      
-                      return (
-                        <Box key={shift.id || shiftIndex} sx={{ mb: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Chip
-                              label={isMobile ? shift.name.substring(0, 12) + '...' : shift.name}
-                              size="small"
-                              sx={{ 
-                                fontSize: isMobile ? '0.7rem' : '0.75rem',
-                                height: isMobile ? 20 : 24,
-                                flexGrow: 1
-                              }}
-                            />
-                            {hasNotes && (
-                              <Tooltip title="Has notes">
-                                <NotesIcon 
-                                  fontSize="small" 
-                                  sx={{ color: 'primary.main', fontSize: isMobile ? '0.7rem' : '0.8rem' }}
-                                />
-                              </Tooltip>
-                            )}
-                            <Tooltip title="Edit notes">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleOpenNotesDialog(day, shiftIndex, shift)}
-                                sx={{ fontSize: isMobile ? '0.7rem' : '0.8rem' }}
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete shift">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDeleteShift(dayKey, shiftIndex)}
-                                sx={{ fontSize: isMobile ? '0.7rem' : '0.8rem', color: 'error.main' }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                          
-                          {hasNotes && (
-                            <Collapse in={isExpanded}>
-                              <Box sx={{ 
-                                mt: 0.5, 
-                                p: 1, 
-                                bgcolor: 'grey.50', 
-                                borderRadius: 1,
-                                fontSize: isMobile ? '0.7rem' : '0.75rem'
-                              }}>
-                                <Typography variant="body2" sx={{ fontSize: 'inherit' }}>
-                                  {shift.notes}
-                                </Typography>
-                              </Box>
-                            </Collapse>
-                          )}
-                          
-                          {hasNotes && (
-                            <IconButton
-                              size="small"
-                              onClick={() => toggleNotesExpansion(dayKey, shiftIndex)}
-                              sx={{ fontSize: isMobile ? '0.6rem' : '0.7rem' }}
-                            >
-                              {isExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                            </IconButton>
-                          )}
-                          
-                          {/* Role Assignments */}
-                          {(shift.required_roles || shift.requiredRoles) && (
-                            <Box sx={{ mt: 0.5 }}>
-                              {(shift.required_roles || shift.requiredRoles).map(roleId => {
-                                const role = getRoleById(roleId);
-                                const assignedStaffId = shift.assignedStaff?.[roleId];
-                                const assignedStaff = getStaffById(assignedStaffId);
-                                const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
-                                
-                                return (
-                                  <Box key={roleId} sx={{ mb: 0.5 }}>
-                                    <Typography 
-                                      variant="caption" 
-                                      sx={{ 
-                                        fontSize: isMobile ? '0.6rem' : '0.7rem',
-                                        fontWeight: 'bold',
-                                        color: 'text.secondary'
-                                      }}
-                                    >
-                                      {role?.name || 'Unknown Role'}:
-                                    </Typography>
-                                    <DroppableRoleTest
-                                      role={role}
-                                      assignedStaff={assignedStaff}
-                                      conflicts={conflicts}
-                                      onStaffDrop={(staffId, sourceInfo) => handleStaffDrop(day, shiftIndex, roleId, staffId, sourceInfo)}
-                                      onRemoveStaff={() => removeStaffAssignment(dayKey, shiftIndex, roleId)}
-                                      staff={staff || []}
-                                      roles={roles || []}
-                                      timeOffRequests={timeOffRequests || []}
-                                      day={day}
-                                      shiftIndex={shiftIndex}
-                                      onStaffColorChange={() => {}} // Not implemented in test component
-                                      staffColor="gray"
-                                      onOpenStaffSelection={handleOpenStaffSelection}
-                                    />
-                                  </Box>
-                                );
-                              })}
-                            </Box>
-                          )}
-                        </Box>
-                      );
-                    })}
-                    
-                    {(!dayData.shifts || dayData.shifts.length === 0) && (
-                      <Typography 
-                        variant="body2" 
-                        color="text.secondary"
-                        sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
-                      >
-                        No shifts
-                      </Typography>
-                    )}
-                  </Box>
+
+                  {renderScheduleTable(day, dayIndex)}
                 </CardContent>
               </Card>
             </Grid>
           );
         })}
       </Grid>
+
+      {/* Day Actions Dropdown Menu */}
+      <Menu
+        anchorEl={dayActionsMenuAnchor}
+        open={Boolean(dayActionsMenuAnchor)}
+        onClose={handleDayActionsMenuClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <MenuItem onClick={handleCreateCustomShiftFromMenu}>
+          <ListItemIcon>
+            <AddIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Create Custom Shift</ListItemText>
+        </MenuItem>
+        
+        <MenuItem 
+          onClick={() => {
+            handleClearDay(format(selectedDayForActions, 'yyyy-MM-dd'));
+            handleDayActionsMenuClose();
+          }}
+          disabled={!selectedDayForActions || !localSchedule[format(selectedDayForActions, 'yyyy-MM-dd')]?.shifts?.length}
+          sx={{ color: 'error.main' }}
+        >
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText>Clear Day</ListItemText>
+        </MenuItem>
+        
+        <MenuItem 
+          onClick={handleSaveTemplateFromMenu}
+          disabled={!selectedDayForActions || !localSchedule[format(selectedDayForActions, 'yyyy-MM-dd')]?.shifts?.length}
+        >
+          <ListItemIcon>
+            <TemplateIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Save as Template</ListItemText>
+        </MenuItem>
+        
+        <MenuItem onClick={handleLoadTemplateFromMenu}>
+          <ListItemIcon>
+            <TemplateIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Load Template</ListItemText>
+        </MenuItem>
+      </Menu>
       
       {/* Staff Panel for Drag & Drop */}
       <Box sx={{ mt: 3 }}>
@@ -1471,7 +1922,7 @@ function ScheduleTestComponent() {
             {/* Custom Shift Creation */}
             <Divider sx={{ my: 3 }} />
             <Typography variant="h6" gutterBottom>
-              Or Create New Shift Template
+              Or Create New Custom Shift
             </Typography>
             
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -1611,14 +2062,14 @@ function ScheduleTestComponent() {
             disabled={!shiftName.trim() || selectedRoles.length === 0}
             sx={{ mr: 1 }}
           >
-            Create Shift Template
+            Create Custom Shift
           </Button>
           <Button 
             onClick={handleAddShiftsToDay}
             variant="contained"
             disabled={selectedShifts.length === 0}
           >
-            Add {selectedShifts.length} Template{selectedShifts.length !== 1 ? 's' : ''}
+            Add {selectedShifts.length} Shift{selectedShifts.length !== 1 ? 's' : ''}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1816,6 +2267,80 @@ function ScheduleTestComponent() {
           <Button onClick={() => setOpenStaffSelectionDialog(false)}>
             Cancel
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Save Template Dialog */}
+      <Dialog open={openTemplateDialog} onClose={() => setOpenTemplateDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Save Day as Template</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Template Name"
+            placeholder="e.g., Busy Saturday, Morning Rush"
+            value={templateName}
+            onChange={(e) => setTemplateName(e.target.value)}
+            margin="normal"
+            autoFocus
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This will save all shifts from {selectedDay ? format(selectedDay, 'EEEE, MMM d') : 'the selected day'} as a reusable template.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenTemplateDialog(false)}>Cancel</Button>
+          <Button onClick={handleSaveTemplate} variant="contained" disabled={!templateName.trim()}>
+            Save Template
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Load Template Dialog */}
+      <Dialog open={openLoadTemplateDialog} onClose={() => setOpenLoadTemplateDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Load Day Template</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select a template to load into {selectedDay ? format(selectedDay, 'EEEE, MMM d') : 'the selected day'}.
+          </Typography>
+          
+          {dayTemplates.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography color="text.secondary">No templates saved yet.</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Create a template by clicking "Save Template" on any day with shifts.
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {dayTemplates.map((template) => (
+                <Card key={template.id} sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+                  <CardContent sx={{ py: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box>
+                        <Typography variant="h6">{template.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {template.dayOfWeek} • {template.shifts.length} shift{template.shifts.length !== 1 ? 's' : ''}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Created {format(new Date(template.createdAt), 'MMM d, yyyy')}
+                        </Typography>
+                      </Box>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => handleLoadTemplate(template)}
+                      >
+                        Load
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenLoadTemplateDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
       </Box>
