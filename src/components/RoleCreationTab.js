@@ -13,6 +13,10 @@ import {
   TextField,
   Typography,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -30,6 +34,7 @@ function RoleCreationTab() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    tier: 1,
   });
 
   const handleOpenDialog = (role = null) => {
@@ -38,12 +43,14 @@ function RoleCreationTab() {
       setFormData({
         name: role.name,
         description: role.description || '',
+        tier: parseInt(role.tier) || 1, // Convert to number and default to 1
       });
     } else {
       setEditingRole(null);
       setFormData({
         name: '',
         description: '',
+        tier: 1,
       });
     }
     setOpenDialog(true);
@@ -55,6 +62,7 @@ function RoleCreationTab() {
     setFormData({
       name: '',
       description: '',
+      tier: 1,
     });
   };
 
@@ -65,7 +73,10 @@ function RoleCreationTab() {
       const roleData = {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
+        tier: formData.tier || 1,
       };
+      
+      console.log('Saving role with data:', roleData);
 
       if (editingRole) {
         const updatedRole = await roleHelpers.update(editingRole.id, roleData);
@@ -153,7 +164,13 @@ function RoleCreationTab() {
                   </Typography>
                 )}
 
-                <Box sx={{ mt: 2 }}>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Chip
+                    label={`Tier ${parseInt(role.tier) || 1}`}
+                    size="small"
+                    variant="filled"
+                    color={(parseInt(role.tier) || 1) === 1 ? 'error' : (parseInt(role.tier) || 1) === 2 ? 'warning' : 'default'}
+                  />
                   <Chip
                     label={`ID: ${role.id}`}
                     size="small"
@@ -203,6 +220,18 @@ function RoleCreationTab() {
               multiline
               rows={3}
             />
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Priority Tier</InputLabel>
+              <Select
+                value={formData.tier ?? 1}
+                onChange={(e) => setFormData({ ...formData, tier: parseInt(e.target.value) })}
+                label="Priority Tier"
+              >
+                <MenuItem value={1}>Tier 1 (Highest Priority)</MenuItem>
+                <MenuItem value={2}>Tier 2 (Medium Priority)</MenuItem>
+                <MenuItem value={3}>Tier 3 (Lowest Priority)</MenuItem>
+              </Select>
+            </FormControl>
           </Box>
         </DialogContent>
         <DialogActions>

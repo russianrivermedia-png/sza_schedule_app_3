@@ -50,6 +50,7 @@ function Navigation() {
     { label: 'Time Off', path: '/time-off' },
     { label: 'Accounts', path: '/accounts' },
     { label: 'ICS Import', path: '/ics-import' },
+    { label: 'Test Schedule', path: '/test-schedule' },
   ];
 
   // Main tabs (role-based visibility)

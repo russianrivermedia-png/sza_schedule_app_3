@@ -19,15 +19,16 @@ function DraggableStaff({ staff, onStaffDrop, onStaffColorChange, staffColor, ro
   });
 
   // Use optimized time off lookup
-  const hasTimeOff = getTimeOffByStaffId(staff.id).some(t =>
+  const timeOffData = getTimeOffByStaffId(staff.id) || [];
+  const hasTimeOff = timeOffData.some(t =>
     t.status === 'approved' &&
     new Date(t.startDate) <= new Date() &&
     new Date(t.endDate) >= new Date()
   );
 
-  // Get trained roles
-  const trainedRoles = staff.trainedRoles.map(roleId => 
-    roles.find(r => r.id === roleId)?.name
+  // Get trained roles with null check
+  const trainedRoles = (staff.trainedRoles || staff.roles || []).map(roleId => 
+    roles?.find(r => r.id === roleId)?.name
   ).filter(Boolean);
 
   const tooltipContent = (
@@ -35,7 +36,7 @@ function DraggableStaff({ staff, onStaffDrop, onStaffColorChange, staffColor, ro
       <div><strong>Name:</strong> {staff.name}</div>
       {staff.email && <div><strong>Email:</strong> {staff.email}</div>}
       {staff.phone && <div><strong>Phone:</strong> {staff.phone}</div>}
-      <div><strong>Availability:</strong> {staff.availability.join(', ')}</div>
+      <div><strong>Availability:</strong> {(staff.availability || []).join(', ')}</div>
       <div><strong>Trained Roles:</strong> {trainedRoles.join(', ')}</div>
       <div><strong>Target Shifts:</strong> {staff.targetShifts || 5}</div>
       {hasTimeOff && <div style={{ color: '#f44336' }}><strong>⚠️ Has approved time off</strong></div>}
@@ -46,7 +47,7 @@ function DraggableStaff({ staff, onStaffDrop, onStaffColorChange, staffColor, ro
     <Tooltip title={tooltipContent} arrow placement="top">
       <Chip
         ref={drag}
-        label={displayName || staff.name}
+        label={staff.name}
         color={hasTimeOff ? 'warning' : 'primary'}
         variant="outlined"
         size="medium"

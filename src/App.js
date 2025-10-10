@@ -8,7 +8,7 @@ import RoleCreationTab from './components/RoleCreationTab';
 import TourCreationTab from './components/TourCreationTab';
 import ShiftCreationTab from './components/ShiftCreationTab';
 import TimeOffRequestsTab from './components/TimeOffRequestsTab';
-import ScheduleBuilderTab from './components/ScheduleBuilderTab';
+import ScheduleBuilderTab from './components/ScheduleBuilderTabNew';
 import ScheduleViewerTab from './components/ScheduleViewerTab';
 import DataManagement from './components/DataManagement';
 import AccountManagementTab from './components/AccountManagementTab';
@@ -17,6 +17,7 @@ import StaffRegistration from './components/StaffRegistration';
 import LoginForm from './components/LoginForm';
 import ProtectedRoute from './components/ProtectedRoute';
 import ICSImportTab from './components/ICSImportTab';
+import ScheduleTestComponent from './components/ScheduleTestComponent';
 import { DataProvider } from './context/DataContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -86,6 +87,11 @@ function App() {
                   <Route path="/ics-import" element={
                     <ProtectedRoute requiredRole="manager">
                       <ICSImportTab />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/test-schedule" element={
+                    <ProtectedRoute requiredRole="manager">
+                      <ScheduleTestComponent />
                     </ProtectedRoute>
                   } />
                   

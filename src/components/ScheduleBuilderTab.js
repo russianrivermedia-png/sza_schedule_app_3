@@ -33,6 +33,8 @@ import {
   ListItemIcon,
   useMediaQuery,
   useTheme,
+  CircularProgress,
+  Divider,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -54,12 +56,17 @@ import {
   ContentCopy as CopyIcon,
   SaveAlt as SaveAltIcon,
   LibraryBooks as TemplateIcon,
+  Clear as ClearIcon,
+  PlayArrow as PlayArrowIcon,
+  Stop as StopIcon,
 } from '@mui/icons-material';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { scheduleHelpers, roleAssignmentsHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
 import { supabase } from '../lib/supabase';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
+import { useLocalSchedule } from '../hooks/useLocalSchedule';
+import { useSchedulePersistence } from '../hooks/useSchedulePersistence';
 import DroppableRole from './DroppableRole';
 import TourDisplay from './TourDisplay';
 
@@ -90,7 +97,23 @@ function ScheduleBuilderTab() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const [selectedWeek, setSelectedWeek] = useState(currentWeek);
-  const [weekSchedule, setWeekSchedule] = useState({});
+  
+  // Local schedule management with new hooks
+  const {
+    localSchedule,
+    hasUnsavedChanges,
+    isDirty,
+    updateLocalSchedule,
+    clearLocalAssignments,
+    markAsSaved,
+    resetToDatabase,
+    weekKey
+  } = useLocalSchedule(selectedWeek, schedules);
+  
+  // Persistence management
+  const { saveSchedule, clearDatabaseAssignments } = useSchedulePersistence(dispatch);
+  
+  // UI state
   const [openShiftDialog, setOpenShiftDialog] = useState(false);
   const [openNotesDialog, setOpenNotesDialog] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -100,6 +123,7 @@ function ScheduleBuilderTab() {
   const [expandedNotes, setExpandedNotes] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
@@ -267,10 +291,13 @@ function ScheduleBuilderTab() {
                 const staffId = originalAssignedStaff[roleId];
                 const staffExists = getStaffById(staffId);
                 
+                // Enhanced debugging for assignment cleanup
                 if (staffExists) {
                   cleanedAssignedStaff[roleId] = staffId;
+                  console.log(`✅ KEEPING valid assignment: Role ${roleId} -> Staff ${staffExists.name} (${staffId})`);
                 } else {
-                  console.log(`🧹 Removing invalid assignment on load: Role ${roleId} -> Staff ${staffId} (not found)`);
+                  console.log(`🧹 REMOVING invalid assignment on load: Role ${roleId} -> Staff ${staffId} (not found in staff roster)`);
+                  console.log(`🔍 Available staff IDs:`, staff.map(s => ({ id: s.id, name: s.name })));
                 }
               });
               
@@ -315,7 +342,7 @@ function ScheduleBuilderTab() {
         }))
       });
       
-      setWeekSchedule(completeWeekData);
+      updateLocalSchedule(completeWeekData);
       // TODO: Check if schedule was published (when we add published status to database)
       setIsPublished(false); // Reset published status for now
     } else {
@@ -334,85 +361,123 @@ function ScheduleBuilderTab() {
           shifts: []
         };
       });
-      setWeekSchedule(emptyWeekData);
+      updateLocalSchedule(emptyWeekData);
     }
   };
 
+  // Save function using new local-first architecture
     const saveWeekSchedule = async () => {
-    const weekKey = format(weekStart, 'yyyy-MM-dd');
+    if (!hasUnsavedChanges) return;
     
-    console.log('💾 SAVING SCHEDULE:', {
-      weekKey,
-      weekSchedule,
-      totalDays: Object.keys(weekSchedule).length,
-      dayShifts: Object.keys(weekSchedule).map(dayKey => ({
-        day: dayKey,
-        shiftsCount: weekSchedule[dayKey]?.shifts?.length || 0,
-        shiftNames: weekSchedule[dayKey]?.shifts?.map(s => s.name) || []
-      }))
-    });
-    
-    const scheduleData = {
-      days: {
-        ...weekSchedule,
-        week_start: weekStart.toISOString(),
-        week_key: weekKey
-      }
-    };
-
-    setIsSaving(true);
     try {
-      const existingSchedule = schedules.find(s => s.weekKey === weekKey);
-      if (existingSchedule) {
-        // Update existing schedule with version control
-        const updatedSchedule = await scheduleHelpers.update(
-          existingSchedule.id, 
-          scheduleData, 
-          scheduleVersion, 
-          currentUser?.id
-        );
-        
-        // Update local version
-        setScheduleVersion(updatedSchedule.version);
-        setLastModifiedBy(updatedSchedule.last_modified_by);
-    } else {
-        // Create new schedule
-        const newSchedule = await scheduleHelpers.add({
-          ...scheduleData,
-          last_modified_by: currentUser?.id
-        });
-        
-        // Update local version
-        setScheduleVersion(newSchedule.version);
-        setLastModifiedBy(newSchedule.last_modified_by);
-      }
+      setIsSaving(true);
+      await saveSchedule(localSchedule, weekKey, weekStart);
+      markAsSaved();
+      console.log('✅ Schedule saved successfully');
     } catch (error) {
-      console.error('Error saving schedule:', error);
-      
-      // Handle specific error types
-      if (error.message.includes('modified by another user')) {
-        // Show conflict resolution dialog
-        setConflictData({
-          type: 'version_conflict',
-          message: 'This schedule has been modified by another user.',
-          details: 'Your changes conflict with changes made by another user. How would you like to resolve this?'
-        });
-        setPendingChanges(scheduleData);
-        setConflictDialogOpen(true);
-      } else if (error.message.includes('currently being edited')) {
-        alert('This schedule is currently being edited by another user. Please try again in a few moments.');
-      } else {
-      alert(`Error saving schedule: ${error.message}. Please try again.`);
-      }
+      console.error('❌ Error saving schedule:', error);
+      alert('Error saving schedule: ' + error.message);
     } finally {
       setIsSaving(false);
-      
-      // Reset published status when schedule is modified
-      setIsPublished(false);
-      
-      // Reload data from context instead of page reload to maintain real-time sync
-      dispatch({ type: 'RELOAD_SCHEDULES' });
     }
+  };
+
+  // Clear assignments function
+  const handleClearAssignments = async () => {
+    if (!window.confirm('Are you sure you want to clear all assignments for this week? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setIsClearing(true);
+      
+      // Clear local assignments
+      clearLocalAssignments();
+      
+      // Clear database assignments
+      const weekEnd = addDays(weekStart, 6);
+      await clearDatabaseAssignments(weekStart, weekEnd);
+      
+      // Save the cleared schedule
+      await saveSchedule(localSchedule, weekKey, weekStart);
+      markAsSaved();
+      
+      console.log('✅ Assignments cleared successfully');
+    } catch (error) {
+      console.error('❌ Error clearing assignments:', error);
+      alert('Error clearing assignments: ' + error.message);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  // Clear all shifts function
+  const handleClearShifts = async () => {
+    if (!window.confirm('Are you sure you want to clear all shifts for this week? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setIsClearing(true);
+      
+      // Clear all shifts from local state
+      updateLocalSchedule(prev => {
+        const clearedSchedule = {};
+        Object.keys(prev).forEach(dayKey => {
+          clearedSchedule[dayKey] = {
+            ...prev[dayKey],
+            shifts: []
+          };
+        });
+        return clearedSchedule;
+      });
+      
+      // Save the cleared schedule
+      await saveSchedule(localSchedule, weekKey, weekStart);
+      markAsSaved();
+      
+      console.log('✅ Shifts cleared successfully');
+    } catch (error) {
+      console.error('❌ Error clearing shifts:', error);
+      alert('Error clearing shifts: ' + error.message);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  // Clear day function
+  const handleClearDay = async (dayKey) => {
+    if (!window.confirm(`Are you sure you want to clear all shifts for ${format(new Date(dayKey), 'EEEE, MMM d')}?`)) {
+      return;
+    }
+
+    try {
+      // Clear shifts for specific day
+      updateLocalSchedule(prev => ({
+        ...prev,
+        [dayKey]: {
+          ...prev[dayKey],
+          shifts: []
+        }
+      }));
+      
+      // Save the updated schedule
+      await saveSchedule(localSchedule, weekKey, weekStart);
+      markAsSaved();
+      
+      console.log('✅ Day cleared successfully');
+    } catch (error) {
+      console.error('❌ Error clearing day:', error);
+      alert('Error clearing day: ' + error.message);
+    }
+  };
+
+  // Reset to database state
+  const handleReset = () => {
+    if (hasUnsavedChanges && !window.confirm('You have unsaved changes. Are you sure you want to reset to the saved version?')) {
+      return;
+    }
+    resetToDatabase();
   };
 
   const publishSchedule = async () => {
@@ -1819,50 +1884,315 @@ function ScheduleBuilderTab() {
     }
   };
 
-  // Analyze which roles are rare/niche vs common
-  const analyzeRoleRarity = () => {
-    const roleTrainingCount = new Map();
+  // Get role tier information from the database
+  const getRoleTierInfo = () => {
+    const roleTierInfo = new Map();
     
-    // Count how many staff are trained for each role
-    staff.forEach(staffMember => {
-      const trainedRoles = staffMember.trained_roles || staffMember.trainedRoles || [];
-      trainedRoles.forEach(roleId => {
-        roleTrainingCount.set(roleId, (roleTrainingCount.get(roleId) || 0) + 1);
+    roles.forEach(role => {
+      roleTierInfo.set(role.id, {
+        name: role.name || 'Unknown Role',
+        tier: role.tier || 1, // Default to tier 1 if not set
+        priority: role.tier || 1 // Use tier as priority (1=highest, 3=lowest)
       });
     });
     
-    // Calculate rarity scores (lower = more rare/niche)
-    const roleRarity = new Map();
-    const totalStaff = staff.length;
-    
-    roleTrainingCount.forEach((count, roleId) => {
-      const role = getRoleById(roleId);
-      const rarityScore = count / totalStaff; // 0-1, lower = more rare
-      const rarityLevel = rarityScore < 0.3 ? 'VERY_RARE' : 
-                         rarityScore < 0.5 ? 'RARE' : 
-                         rarityScore < 0.7 ? 'UNCOMMON' : 'COMMON';
+    return roleTierInfo;
+  };
+
+  // Multi-pass assignment function
+  const performMultiPassAssignment = async (roles, config) => {
+    const { 
+      newWeekSchedule, 
+      dayAssignedStaffMap, 
+      weeklyStaffAssignments, 
+      staffTargetShifts, 
+      timeOffConflicts,
+      logRoleAssignment,
+      dispatch,
+      weekStart
+    } = config;
+
+    let totalAssignedRoles = 0;
+    let remainingRoles = [...roles];
+    let isStaffTimeOffAllowed = false;
+    let isTargetShiftOverrideAllowed = false;
+    let isOnCallStaffIncluded = false;
+    const assignedRoles = [];
+
+    // Define assignment passes based on role tiers
+    const assignmentPasses = [
+      {
+        name: "Pass 1: Tier 1 Roles",
+        description: "Highest priority roles with strict constraints (no time off, must respect target shifts)",
+        tiers: [1], // Tier 1 roles only (highest priority)
+        isStaffTimeOffAllowed: false,
+        isTargetShiftOverrideAllowed: false,
+        isOnCallStaffIncluded: false,
+      },
+      {
+        name: "Pass 2: Tier 2 Roles", 
+        description: "Medium priority roles with strict constraints",
+        tiers: [2], // Tier 2 roles only
+        isStaffTimeOffAllowed: false,
+        isTargetShiftOverrideAllowed: false,
+        isOnCallStaffIncluded: false,
+      },
+      {
+        name: "Pass 3: Tier 3 Roles",
+        description: "Lowest priority roles with relaxed constraints",
+        tiers: [3], // Tier 3 roles only
+        isStaffTimeOffAllowed: false,
+        isTargetShiftOverrideAllowed: true, // Allow slight target shift overages
+        isOnCallStaffIncluded: false,
+      },
+      {
+        name: "Pass 4: Emergency Fill",
+        description: "Final attempt with all constraints relaxed except training",
+        tiers: [1, 2, 3], // All remaining roles
+        isStaffTimeOffAllowed: true, // Allow staff with minor time off conflicts
+        isTargetShiftOverrideAllowed: true,
+        isOnCallStaffIncluded: true, // Allow on-call staff if desperate
+      }
+    ];
+
+    // Execute each assignment pass
+    for (const pass of assignmentPasses) {
+      console.log(`\n🔄 ${pass.name} - ${pass.description}`);
       
-      roleRarity.set(roleId, {
-        name: role?.name || 'Unknown Role',
-        trainedCount: count,
-        rarityScore,
-        rarityLevel,
-        priority: rarityScore < 0.3 ? 1 : // Highest priority for very rare roles
-                 rarityScore < 0.5 ? 2 : // High priority for rare roles
-                 rarityScore < 0.7 ? 3 : 4 // Lower priority for common roles
+      // Update global constraints for this pass
+      isStaffTimeOffAllowed = pass.isStaffTimeOffAllowed;
+      isTargetShiftOverrideAllowed = pass.isTargetShiftOverrideAllowed;
+      isOnCallStaffIncluded = pass.isOnCallStaffIncluded;
+
+      // Filter roles for this pass based on tier
+      const currentPassRoles = remainingRoles.filter(role => 
+        pass.tiers.includes(role.tier)
+      );
+
+      if (currentPassRoles.length === 0) {
+        console.log(`⏭️ No roles for ${pass.name} - skipping`);
+        continue;
+      }
+
+      console.log(`🎯 Processing ${currentPassRoles.length} roles for ${pass.name}`);
+
+      // Sort by priority within this pass (rare first, then by day)
+      currentPassRoles.sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return a.priority - b.priority;
+        }
+        return a.dayKey.localeCompare(b.dayKey);
       });
+
+      for (const roleInfo of currentPassRoles) {
+        const { dayKey, dayOfWeek, dayDate, shiftIndex, shift, roleId, roleName, tier } = roleInfo;
+        
+        // Debug: Log guide role processing in each pass
+        if (roleId === '36f351dc-066c-4d87-a185-e37e3b6d6e6c' || roleId === 'ad995bd4-a1e3-4f92-855b-9d6a3d958ea6') {
+          console.log(`🎯 ${pass.name} - PROCESSING GUIDE ROLE:`, {
+            roleId,
+            roleName,
+            tier: roleInfo.tier,
+            shiftName: shift.name,
+            currentAssignments: shift.assignedStaff,
+            passName: pass.name,
+            passTiers: pass.tiers
+          });
+        }
+        
+        // Get the current day's assigned staff (shared across all roles for this day)
+        const dayAssignedStaff = dayAssignedStaffMap.get(dayKey);
+        
+        // Find best available staff for this role with current pass constraints
+        const availableStaff = staff.filter(s => {
+          const staffMember = getStaffById(s.id);
+          if (!staffMember) return false;
+          
+          // On-call staff constraint varies by pass
+          if (!pass.isOnCallStaffIncluded && staffMember.on_call) return false;
+          
+          // Check if staff is trained for this role (always required)
+          const isTrained = (staffMember.trained_roles || staffMember.trainedRoles || []).includes(roleId);
+          if (!isTrained) return false;
+          
+          // Check availability for this day (always required)
+          const staffAvailability = staffMember.availability || [];
+          const isAvailable = staffAvailability.includes(dayOfWeek);
+          if (!isAvailable) return false;
+          
+          // Check if already assigned on this day (always enforced)
+          if (dayAssignedStaff.has(s.id)) return false;
+          
+          // Check if staff has reached their target shifts for the week
+          const currentWeekShifts = weeklyStaffAssignments.get(s.id) || 0;
+          const targetShifts = staffTargetShifts.get(s.id) || 5;
+          
+          if (!pass.isTargetShiftOverrideAllowed && currentWeekShifts >= targetShifts) {
+            return false;
+          }
+          
+          // Time off conflicts - varies by pass
+          if (!pass.isStaffTimeOffAllowed) {
+            const staffTimeOffConflicts = timeOffConflicts.get(s.id) || [];
+            const hasTimeOff = staffTimeOffConflicts.some(t => {
+              const conflictStart = new Date(t.start_date);
+              const conflictEnd = new Date(t.end_date);
+              return dayDate >= conflictStart && dayDate <= conflictEnd;
+            });
+            if (hasTimeOff) return false;
+          }
+          
+          return true;
+        });
+
+        // Sort available staff by current week shifts (ascending) for load balancing
+        availableStaff.sort((a, b) => {
+          const aCurrentShifts = weeklyStaffAssignments.get(a.id) || 0;
+          const bCurrentShifts = weeklyStaffAssignments.get(b.id) || 0;
+          
+          if (aCurrentShifts !== bCurrentShifts) {
+            return aCurrentShifts - bCurrentShifts;
+          }
+          
+          // If current shifts are equal, prefer staff with higher target shifts capacity
+          return (staffTargetShifts.get(b.id) || 5) - (staffTargetShifts.get(a.id) || 5);
+        });
+        
+        // Try to assign staff to this role
+        let roleAssigned = false;
+        for (const staffMember of availableStaff) {
+          // Check assignment constraints one final time
+          const currentWeekShifts = weeklyStaffAssignments.get(staffMember.id) || 0;
+          const targetShifts = staffTargetShifts.get(staffMember.id) || 5;
+          
+          // Allow slight overage in later passes (Pass 3+)
+          const maxAllowedShifts = pass.isTargetShiftOverrideAllowed ? targetShifts + 1 : targetShifts;
+          
+          if (currentWeekShifts < maxAllowedShifts) {
+            console.log(`✅ PASS: ${pass.name} - ASSIGNING ${staffMember.name} to ${roleName} (Tier ${tier}) on ${dayOfWeek} [Shifts: ${currentWeekShifts}/${targetShifts}]`);
+            
+            // Update the shift assignment
+            const updatedAssignedStaff = { ...shift.assignedStaff };
+            updatedAssignedStaff[roleId] = staffMember.id;
+            
+            console.log(`💾 SAVING ASSIGNMENT: Role ${roleId} -> Staff ${staffMember.name} (${staffMember.id})`);
+            console.log(`💾 BEFOREFORE assignment - assignedStaff:`, shift.assignedStaff);
+            console.log(`💾 AFTER assignment - updatedAssignedStaff:`, updatedAssignedStaff);
+            
+            // Update the shift in the schedule
+            config.newWeekSchedule[dayKey].shifts[shiftIndex] = {
+              ...shift,
+              assignedStaff: updatedAssignedStaff
+            };
+            
+            // CRITICAL: Update the shared dayAssignedStaff set to prevent double-booking
+            dayAssignedStaff.add(staffMember.id);
+            
+            // Update tracking
+            weeklyStaffAssignments.set(staffMember.id, currentWeekShifts + 1);
+            totalAssignedRoles++;
+            roleAssigned = true;
+            
+            // Log this assignment
+            assignedRoles.push({
+              day: format(dayDate, 'EEEE, MMM d'),
+              shift: shift.name,
+              role: roleName,
+              tier,
+              staffName: staffMember.name,
+              pass: pass.name,
+              shiftsAtAssignment: currentWeekShifts,
+              targetShifts: targetShifts
+            });
+            
+            // Log role assignment for tracking
+            const weekKey = format(weekStart, 'yyyy-MM-dd');
+            const assignmentDate = dayDate.toISOString();
+            await logRoleAssignment(staffMember.id, roleId, shift.shiftId, null, weekKey, assignmentDate);
+            
+            // Increment shift count for the assigned staff member
+            dispatch({
+              type: 'UPDATE_STAFF_SHIFT_COUNT',
+              payload: {
+                staffId: staffMember.id,
+                roleId: roleId,
+                assignmentDate: dayDate.toISOString()
+              }
+            });
+            
+            break;
+          }
+        }
+        
+        // Remove assigned role from remaining roles
+        if (roleAssigned) {
+          const indexToRemove = remainingRoles.findIndex(role => 
+            role.dayKey === roleInfo.dayKey && 
+            role.shiftIndex === roleInfo.shiftIndex && 
+            role.roleId === roleInfo.roleId
+          );
+          if (indexToRemove !== -1) {
+            const removedRole = remainingRoles.splice(indexToRemove, 1)[0];
+            console.log(`🧹 REMOVED assigned role from remaining queue: ${roleName} on ${dayOfWeek} - remaining roles: ${remainingRoles.length}`);
+          } else {
+            console.log(`❌ WARNING: Could not find role to remove: ${roleName} on ${dayOfWeek}`);
+          }
+        }
+      }
+      
+      console.log(`✅ ${pass.name} completed: ${totalAssignedRoles} total roles assigned so far`);
+      
+      // If no more roles to assign, break early
+      if (remainingRoles.length === 0) {
+        console.log('🎉 All roles assigned! Breaking early from passes.');
+        break;
+      }
+    }
+
+    // Generate unassigned roles report for remaining roles
+    const unassignedRoles = remainingRoles.map(roleInfo => {
+      const { dayDate, shift, roleName, tier } = roleInfo;
+      return {
+        day: format(dayDate, 'EEEE, MMM d'),
+        shift: shift.name,
+        role: roleName,
+        tier,
+        reason: 'No available staff meeting constraints'
+      };
+    });
+
+    console.log(`\n📊 MULTI-PASS SUMMARY:`);
+    console.log(`✅ Total roles assigned: ${totalAssignedRoles}`);
+    console.log(`❌ Total roles unassigned: ${remainingRoles.length}`);
+    console.log(`📈 Assignment breakdown by pass:`);
+    
+    // Log assignment details by pass
+    const passAssignments = {};
+    assignedRoles.forEach(assignment => {
+      if (!passAssignments[assignment.pass]) {
+        passAssignments[assignment.pass] = 0;
+      }
+      passAssignments[assignment.pass]++;
     });
     
-    return roleRarity;
+    Object.entries(passAssignments).forEach(([pass, count]) => {
+      console.log(`   ${pass}: ${count} roles`);
+    });
+
+    return {
+      assignedRoles: totalAssignedRoles,
+      unassignedRoles,
+      assignmentDetails: assignedRoles
+    };
   };
 
   const autoAssignStaff = async () => {
-    console.log('🚀 SMART AUTO-ASSIGN STARTING...');
+    console.log('🚀 MULTI-PASS AUTO-ASSIGN STARTING...');
     console.log('🔍 Staff data:', staff.map(s => ({ name: s.name, availability: s.availability })));
     
-    // Analyze role rarity to prioritize niche roles
-    const roleRarity = analyzeRoleRarity();
-    console.log('📊 Role rarity analysis:', roleRarity);
+    // Get role tier information for prioritization
+    const roleTierInfo = getRoleTierInfo();
+    console.log('📊 Role tier analysis:', roleTierInfo);
     
     // Use the selected week's schedule data, not the current week's
     const newWeekSchedule = { ...weekSchedule };
@@ -1987,19 +2317,21 @@ function ScheduleBuilderTab() {
             continue; // Already assigned - leave as is
           }
           
-          // Add to unassigned roles list with priority information
-          const roleInfo = roleRarity.get(roleId);
+          // Add to unassigned roles list with tier information
+          const roleInfo = roleTierInfo.get(roleId);
           
-          // Debug: Log Lead Guide roles being collected
-          if (roleId === '36f351dc-066c-4d87-a185-e37e3b6d6e6c') {
-            console.log(`🔍 DEBUG: Collecting Lead Guide role for assignment:`, {
+        // Debug: Log ALL guide roles being collected
+        if (roleId === '36f351dc-066c-4d87-a185-e37e3b6d6e6c' || roleId === 'ad995bd4-a1e3-4f92-855b-9d6a3d958ea6') {
+          console.log(`🔍 DEBUG: Collecting GUIDE role for assignment:`, {
               dayKey,
               dayOfWeek,
               roleId,
               roleName: roleInfo?.name || 'Unknown Role',
+              tier: roleInfo?.tier || 1,
               shiftName: shift.name,
-              assignedStaff: shift.assignedStaff,
-              rarityInfo: roleInfo
+              existingAssignments: shift.assignedStaff,
+              requiredRoles: shift.required_roles || shift.requiredRoles,
+              tierInfo: roleInfo
             });
           }
           
@@ -2011,165 +2343,37 @@ function ScheduleBuilderTab() {
             shift,
             roleId,
             roleName: roleInfo?.name || 'Unknown Role',
-            priority: roleInfo?.priority || 4,
-            rarityLevel: roleInfo?.rarityLevel || 'COMMON',
-            trainedCount: roleInfo?.trainedCount || 0
+            tier: roleInfo?.tier || 1,
+            priority: roleInfo?.priority || 1
           });
         }
       }
     }
     
-    // Sort by priority (rare roles first) and then by day
+    // Sort by tier (tier 1 first) and then by day
     allUnassignedRoles.sort((a, b) => {
-      if (a.priority !== b.priority) {
-        return a.priority - b.priority; // Lower priority number = higher priority
+      if (a.tier !== b.tier) {
+        return a.tier - b.tier; // Lower tier number = higher priority
       }
       return a.dayKey.localeCompare(b.dayKey);
     });
     
-    console.log(`🎯 SMART ASSIGNMENT: Processing ${allUnassignedRoles.length} unassigned roles by priority`);
-    allUnassignedRoles.forEach((roleInfo, index) => {
-      console.log(`${index + 1}. ${roleInfo.rarityLevel} - ${roleInfo.roleName} (${roleInfo.trainedCount} trained) on ${roleInfo.dayOfWeek}`);
-      
-      // Debug: Check if this is a Lead Guide role
-      if (roleInfo.roleId === '36f351dc-066c-4d87-a185-e37e3b6d6e6c') {
-        console.log(`🔍 DEBUG: Found Lead Guide role in unassigned list:`, roleInfo);
-      }
+    console.log(`🎯 MULTI-PASS ASSIGNMENT: Processing ${allUnassignedRoles.length} unassigned roles across multiple passes`);
+    
+    // Multi-pass assignment system
+    const passResults = await performMultiPassAssignment(allUnassignedRoles, {
+      newWeekSchedule,
+      dayAssignedStaffMap,
+      weeklyStaffAssignments,
+      staffTargetShifts,
+      timeOffConflicts,
+      logRoleAssignment,
+      dispatch,
+      weekStart
     });
     
-    // Process roles in priority order
-    for (const roleInfo of allUnassignedRoles) {
-      const { dayKey, dayOfWeek, dayDate, shiftIndex, shift, roleId, roleName, rarityLevel } = roleInfo;
-      
-      console.log(`🎯 PROCESSING ${rarityLevel} ROLE: ${roleName} on ${dayOfWeek}`);
-      
-      // Get the current day's assigned staff (shared across all roles for this day)
-      const dayAssignedStaff = dayAssignedStaffMap.get(dayKey);
-      
-      // Find best available staff for this role
-      const availableStaff = staff.filter(s => {
-        const staffMember = getStaffById(s.id);
-        if (!staffMember) return false;
-        
-        // Skip on call staff - they should only be manually assigned
-        if (staffMember.on_call) return false;
-        
-        // Check if staff is trained for this role
-        const isTrained = (staffMember.trained_roles || staffMember.trainedRoles || []).includes(roleId);
-        if (!isTrained) return false;
-        
-        // Check availability for this day
-        const staffAvailability = staffMember.availability || [];
-        const isAvailable = staffAvailability.includes(dayOfWeek);
-        if (!isAvailable) return false;
-        
-        // Check if already assigned on this day
-        if (dayAssignedStaff.has(s.id)) return false;
-        
-        // Check if staff has reached their target shifts for the week
-        const currentWeekShifts = weeklyStaffAssignments.get(s.id) || 0;
-        const targetShifts = staffTargetShifts.get(s.id) || 5;
-        if (currentWeekShifts >= targetShifts) return false;
-        
-        // Check time off conflicts
-        const staffTimeOffConflicts = timeOffConflicts.get(s.id) || [];
-        const hasTimeOff = staffTimeOffConflicts.some(t => {
-          const conflictStart = new Date(t.start_date);
-          const conflictEnd = new Date(t.end_date);
-          return dayDate >= conflictStart && dayDate <= conflictEnd;
-        });
-        if (hasTimeOff) return false;
-        
-        return true;
-      });
-      
-      // Debug: Log available staff for Lead Guide roles
-      if (roleId === '36f351dc-066c-4d87-a185-e37e3b6d6e6c') {
-        console.log(`🔍 DEBUG Lead Guide (${roleName}) on ${dayOfWeek}:`, {
-          roleId,
-          availableStaffCount: availableStaff.length,
-          availableStaff: availableStaff.map(s => ({
-            id: s.id,
-            name: s.name,
-            trainedRoles: s.trained_roles || s.trainedRoles || [],
-            availability: s.availability || [],
-            onCall: s.on_call,
-            currentWeekShifts: weeklyStaffAssignments.get(s.id) || 0,
-            targetShifts: staffTargetShifts.get(s.id) || 5,
-            timeOffConflicts: timeOffConflicts.get(s.id) || []
-          }))
-        });
-      }
-
-      // Sort available staff by current week shifts (ascending) and then by target shifts
-      availableStaff.sort((a, b) => {
-        const aCurrentShifts = weeklyStaffAssignments.get(a.id) || 0;
-        const bCurrentShifts = weeklyStaffAssignments.get(b.id) || 0;
-        
-        if (aCurrentShifts !== bCurrentShifts) {
-          return aCurrentShifts - bCurrentShifts;
-        }
-        return (a.targetShifts || 5) - (b.targetShifts || 5);
-      });
-      
-      // Try to assign staff to this role
-      let roleAssigned = false;
-      for (const staffMember of availableStaff) {
-        // Double-check target shifts before assignment
-        const currentWeekShifts = weeklyStaffAssignments.get(staffMember.id) || 0;
-        const targetShifts = staffTargetShifts.get(staffMember.id) || 5;
-        
-        if (currentWeekShifts < targetShifts) {
-          console.log(`✅ ASSIGNING ${staffMember.name} to ${roleName} (${rarityLevel}) on ${dayOfWeek}`);
-          
-          // Update the shift assignment
-          const updatedAssignedStaff = { ...shift.assignedStaff };
-          updatedAssignedStaff[roleId] = staffMember.id;
-          
-          // Update the shift in the schedule
-          newWeekSchedule[dayKey].shifts[shiftIndex] = {
-            ...shift,
-            assignedStaff: updatedAssignedStaff
-          };
-          
-          // CRITICAL: Update the shared dayAssignedStaff set to prevent double-booking
-          dayAssignedStaff.add(staffMember.id);
-          
-          // Update tracking
-          weeklyStaffAssignments.set(staffMember.id, currentWeekShifts + 1);
-          assignedRoles++;
-          roleAssigned = true;
-          
-          // Log role assignment for tracking
-          const weekKey = format(weekStart, 'yyyy-MM-dd');
-          const assignmentDate = dayDate.toISOString();
-          logRoleAssignment(staffMember.id, roleId, shift.shiftId, null, weekKey, assignmentDate);
-          
-          // Increment shift count for the assigned staff member
-          dispatch({
-            type: 'UPDATE_STAFF_SHIFT_COUNT',
-            payload: {
-              staffId: staffMember.id,
-              roleId: roleId,
-              assignmentDate: dayDate.toISOString()
-            }
-          });
-          
-          break;
-        }
-      }
-      
-      // Track unassigned roles for reporting
-      if (!roleAssigned) {
-        unassignedRoles.push({
-          day: format(dayDate, 'EEEE, MMM d'),
-          shift: shift.name,
-          role: roleName,
-          rarityLevel,
-          trainedCount: roleInfo.trainedCount
-        });
-      }
-    }
+    assignedRoles = passResults.assignedRoles;
+    unassignedRoles = passResults.unassignedRoles;
     
     setWeekSchedule(newWeekSchedule);
     
@@ -2189,8 +2393,21 @@ function ScheduleBuilderTab() {
         }
       };
       
-      // Debug: Log the complete schedule data being saved
-      console.log('🔍 DEBUG: scheduleData being saved:', JSON.stringify(scheduleData, null, 2));
+      // Debug: Log the complete schedule data being saved - FOCUS ON TREE TOPS ASSIGNMENTS
+      console.log('🔍 DEBUG: Tree Tops assignments in scheduleData being saved:');
+      Object.keys(scheduleData.days).forEach(dayKey => {
+        if (scheduleData.days[dayKey].shifts) {
+          scheduleData.days[dayKey].shifts.forEach(shift => {
+            if (shift.name?.includes('Tree Tops')) {
+              console.log(`  ${dayKey} ${shift.name}:`, {
+                assignedStaff: shift.assignedStaff,
+                requiredRoles: shift.requiredRoles,
+                hasLeadGuide: shift.assignedStaff?.['36f351dc-066c-4d87-a185-e37e3b6d6e6c'] ? 'YES' : 'NO'
+              });
+            }
+          });
+        }
+      });
       
       const existingSchedule = schedules.find(s => s.weekKey === weekKey);
       if (existingSchedule) {
@@ -2217,17 +2434,42 @@ function ScheduleBuilderTab() {
       alert('Auto-assignment completed but failed to save to database. Please try saving manually.');
     }
     
-         // Show results to user
+         // Show results to user with multi-pass details
      const unassignedCount = totalRoles - assignedRoles;
      if (unassignedCount > 0) {
-       const message = `Auto-assignment complete! ${assignedRoles}/${totalRoles} roles assigned. ${unassignedCount} roles could not be assigned due to conflicts or insufficient available staff.\n\nConflicts include: training requirements, availability, time off requests, double-booking, and weekly shift limits.\n\nUnassigned roles have been logged to the console for review.`;
-       alert(message);
+       const assignmentSummary = passResults.assignmentDetails.reduce((summary, assignment) => {
+         summary[assignment.pass] = (summary[assignment.pass] || 0) + 1;
+         return summary;
+       }, {});
+       
+       let assignmentMessage = `Multi-pass auto-assignment complete!\n\n📊 Results: ${assignedRoles}/${totalRoles} roles assigned\n${unassignedCount} roles could not be assigned.\n\n📈 Assignment breakdown:\n`;
+       
+       for (const [pass, count] of Object.entries(assignmentSummary)) {
+         assignmentMessage += `• ${pass}: ${count} roles\n`;
+       }
+       
+       assignmentMessage += `\n💡 The system used 5 passes with progressively relaxed constraints to maximize assignments.\n`;
+       assignmentMessage += `Rare roles were prioritized first, then common roles were filled with relaxed constraints where needed.`;
+       
+       alert(assignmentMessage);
+       
        // Log unassigned roles for debugging
       if (unassignedRoles.length > 0) {
-        console.log('Unassigned roles (due to conflicts):', unassignedRoles);
+         console.log('❌ Unassigned roles (after all passes):', unassignedRoles);
       }
      } else {
-       alert(`Auto-assignment complete! All ${totalRoles} roles have been assigned and saved to the database.`);
+       const assignmentSummary = passResults.assignmentDetails.reduce((summary, assignment) => {
+         summary[assignment.pass] = (summary[assignment.pass] || 0) + 1;
+         return summary;
+       }, {});
+       
+       let successMessage = `🎉 Multi-pass auto-assignment successful!\n\n✅ All ${totalRoles} roles have been assigned and saved to the database.\n\n📈 Assignment breakdown:\n`;
+       
+       for (const [pass, count] of Object.entries(assignmentSummary)) {
+         successMessage += `• ${pass}: ${count} roles\n`;
+       }
+       
+       alert(successMessage);
      }
   };
 
@@ -2255,7 +2497,7 @@ function ScheduleBuilderTab() {
 
   const renderScheduleTable = (day, dayIndex) => {
     const dayKey = format(day, 'yyyy-MM-dd');
-    const daySchedule = weekSchedule[dayKey] || { shifts: [] };
+    const daySchedule = localSchedule[dayKey] || { shifts: [] };
     const dayOfWeek = DAYS_OF_WEEK[dayIndex];
 
     if (daySchedule.shifts.length === 0) {
@@ -2715,6 +2957,53 @@ function ScheduleBuilderTab() {
               >
                 {isMobile ? (isPublishing ? 'Publishing...' : 'Publish') : (isPublishing ? 'Publishing...' : 'Publish')}
             </Button>
+            
+            {/* New Clear Buttons */}
+            <Button
+              variant="outlined"
+              color="warning"
+              size={isMobile ? "small" : "medium"}
+              startIcon={!isMobile ? <ClearIcon /> : null}
+              onClick={handleClearAssignments}
+              disabled={isScheduleLocked && lockedBy !== currentUser?.id || isClearing}
+              sx={{ 
+                minWidth: isMobile ? 'auto' : '140px',
+                flex: isMobile ? 1 : 'none',
+                fontSize: isMobile ? '0.75rem' : '0.875rem'
+              }}
+            >
+              {isMobile ? (isClearing ? 'Clearing...' : 'Clear Assignments') : (isClearing ? 'Clearing...' : 'Clear Assignments')}
+            </Button>
+            
+            <Button
+              variant="outlined"
+              color="error"
+              size={isMobile ? "small" : "medium"}
+              startIcon={!isMobile ? <ClearIcon /> : null}
+              onClick={handleClearShifts}
+              disabled={isScheduleLocked && lockedBy !== currentUser?.id || isClearing}
+              sx={{ 
+                minWidth: isMobile ? 'auto' : '120px',
+                flex: isMobile ? 1 : 'none',
+                fontSize: isMobile ? '0.75rem' : '0.875rem'
+              }}
+            >
+              {isMobile ? (isClearing ? 'Clearing...' : 'Clear Shifts') : (isClearing ? 'Clearing...' : 'Clear Shifts')}
+            </Button>
+            
+            <Button
+              variant="outlined"
+              startIcon={!isMobile ? <RefreshIcon /> : null}
+              onClick={handleReset}
+              disabled={!hasUnsavedChanges}
+              sx={{ 
+                minWidth: isMobile ? 'auto' : '100px',
+                flex: isMobile ? 1 : 'none',
+                fontSize: isMobile ? '0.75rem' : '0.875rem'
+              }}
+            >
+              {isMobile ? 'Reset' : 'Reset'}
+            </Button>
           </Box>
         </Box>
         </Box>
@@ -2764,7 +3053,7 @@ function ScheduleBuilderTab() {
         <Grid container spacing={2}>
           {weekDates.map((day, dayIndex) => {
             const dayKey = format(day, 'yyyy-MM-dd');
-            const daySchedule = weekSchedule[dayKey] || { shifts: [] };
+            const daySchedule = localSchedule[dayKey] || { shifts: [] };
             const dayOfWeek = DAYS_OF_WEEK[dayIndex];
             
             return (
@@ -2812,6 +3101,22 @@ function ScheduleBuilderTab() {
                         }}
                       >
                           {isMobile ? 'Add' : 'Add Shifts'}
+                      </Button>
+                      
+                      {/* Clear Day Button */}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        startIcon={<ClearIcon />}
+                        onClick={() => handleClearDay(dayKey)}
+                        disabled={!daySchedule.shifts || daySchedule.shifts.length === 0}
+                        sx={{ 
+                          fontSize: isMobile ? '0.75rem' : '0.875rem',
+                          px: isMobile ? 1 : 1.5
+                        }}
+                      >
+                        {isMobile ? 'Clear' : 'Clear Day'}
                       </Button>
                             </Box>
                     </Box>
