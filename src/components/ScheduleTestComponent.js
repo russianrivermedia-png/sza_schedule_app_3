@@ -109,6 +109,7 @@ function ScheduleTestComponent() {
   const [staffFilterByDays, setStaffFilterByDays] = useState([]);
   const [staffSortBy, setStaffSortBy] = useState('name');
   const [staffSortDirection, setStaffSortDirection] = useState('asc');
+  const [staffFilterOnCall, setStaffFilterOnCall] = useState(false);
   
   // Shift selection state
   const [selectedShifts, setSelectedShifts] = useState([]);
@@ -1154,8 +1155,14 @@ function ScheduleTestComponent() {
       );
     }
     
-    // Filter out on-call staff (they're not available for regular scheduling)
-    filtered = filtered.filter(member => !member.on_call);
+    // Filter by on-call status
+    if (staffFilterOnCall) {
+      // Show only on-call staff
+      filtered = filtered.filter(member => member.on_call);
+    } else {
+      // Show only non-on-call staff (default behavior)
+      filtered = filtered.filter(member => !member.on_call);
+    }
     
     // Filter by days (staff must be available on the target day)
     if (targetDay && targetDay instanceof Date && !isNaN(targetDay.getTime())) {
@@ -2116,6 +2123,14 @@ function ScheduleTestComponent() {
         onClose={() => setOpenStaffSelectionDialog(false)} 
         maxWidth="md" 
         fullWidth
+        disableScrollLock={false}
+        PaperProps={{
+          sx: {
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }
+        }}
       >
         <DialogTitle>
           <Typography variant="h6">
@@ -2125,8 +2140,8 @@ function ScheduleTestComponent() {
             {selectedDay && format(selectedDay, 'EEEE, MMMM d')}
           </Typography>
         </DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1 }}>
+        <DialogContent sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ pt: 1, flex: 1, display: 'flex', flexDirection: 'column' }}>
             {/* Filter Controls */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
               <Typography variant="body2" color="text.secondary">
@@ -2197,14 +2212,32 @@ function ScheduleTestComponent() {
                 </IconButton>
               </Box>
               
+              {/* On-Call Filter */}
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={staffFilterOnCall}
+                    onChange={(e) => setStaffFilterOnCall(e.target.checked)}
+                    size="small"
+                  />
+                }
+                label={
+                  <Typography variant="body2" color="text.secondary">
+                    Show on-call staff only
+                  </Typography>
+                }
+                sx={{ ml: 0 }}
+              />
+              
               {/* Clear Filters Button */}
-              {(staffFilterByRole || staffFilterByDays.length > 0) && (
+              {(staffFilterByRole || staffFilterByDays.length > 0 || staffFilterOnCall) && (
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={() => {
                     setStaffFilterByRole('');
                     setStaffFilterByDays([]);
+                    setStaffFilterOnCall(false);
                   }}
                   sx={{ color: 'text.secondary' }}
                 >
@@ -2214,7 +2247,7 @@ function ScheduleTestComponent() {
             </Box>
             
             {/* Staff List */}
-            <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+            <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
               {getFilteredAndSortedStaff(selectedRoleId, selectedDay).map((staffMember) => {
                 const conflicts = selectedDay ? getStaffConflicts(staffMember.id, selectedDay, selectedRoleId) : [];
                 const hasConflicts = conflicts.length > 0;
