@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { format, startOfWeek, addDays } from 'date-fns';
-import { roleAssignmentsHelpers } from '../lib/supabaseHelpers';
+import { roleAssignmentsHelpers, staffShiftRecordsHelpers } from '../lib/supabaseHelpers';
 
 const DataContext = createContext();
 
@@ -475,6 +475,23 @@ export function DataProvider({ children }) {
     };
   }, []);
 
+  // Process completed shifts - convert scheduled shifts to actual shift records
+  const processCompletedShifts = useCallback(async () => {
+    try {
+      const processedCount = await staffShiftRecordsHelpers.processCompletedShifts();
+      console.log(`✅ Processed ${processedCount} completed shifts`);
+      return processedCount;
+    } catch (error) {
+      console.error('Error processing completed shifts:', error);
+      return 0;
+    }
+  }, []);
+
+  // Auto-process completed shifts on app load
+  useEffect(() => {
+    processCompletedShifts();
+  }, [processCompletedShifts]);
+
   const value = {
     ...state,
     dispatch,
@@ -494,6 +511,7 @@ export function DataProvider({ children }) {
     // Supabase functions
     supabase,
     loadData,
+    processCompletedShifts,
   };
 
   return (

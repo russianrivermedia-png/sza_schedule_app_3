@@ -71,10 +71,11 @@ import DraggableStaff from './DraggableStaff';
 import DroppableRoleTest from './DroppableRoleTest';
 import TourDisplay from './TourDisplay';
 import { getTourColorValue } from '../config/tourColors';
+import { getStaffColorValue, getAllStaffColors } from '../config/staffColors';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function ScheduleTestComponent() {
+function ScheduleBuilderV2() {
   const { 
     schedules, 
     dispatch, 
@@ -89,10 +90,10 @@ function ScheduleTestComponent() {
     getTimeOffByStaffId
   } = useData();
 
-  console.log('🔍 ScheduleTestComponent render - loading:', loading);
-  console.log('🔍 ScheduleTestComponent render - staff:', staff?.length);
-  console.log('🔍 ScheduleTestComponent render - shifts:', shifts?.length);
-  console.log('🔍 ScheduleTestComponent render - roles:', roles?.length);
+  console.log('🔍 ScheduleBuilderV2 render - loading:', loading);
+  console.log('🔍 ScheduleBuilderV2 render - staff:', staff?.length);
+  console.log('🔍 ScheduleBuilderV2 render - shifts:', shifts?.length);
+  console.log('🔍 ScheduleBuilderV2 render - roles:', roles?.length);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [selectedWeek, setSelectedWeek] = useState(new Date());
@@ -339,15 +340,15 @@ function ScheduleTestComponent() {
       // Now add the shift instance to the schedule
       const dayKey = format(selectedDay, 'yyyy-MM-dd');
       
-      // For team events, assign all staff to the first role
+      // For team events, assign all staff to different roles for dashboard purposes
       let assignedStaff = {};
-      if (isTeamEvent && staff && staff.length > 0) {
-        const firstRoleId = selectedRoles[0];
-        if (firstRoleId) {
-          staff.forEach(staffMember => {
-            assignedStaff[firstRoleId] = staffMember.id;
-          });
-        }
+      if (isTeamEvent && staff && staff.length > 0 && selectedRoles.length > 0) {
+        // Assign each staff member to a role so everyone shows up on their dashboard
+        staff.forEach((staffMember, index) => {
+          const roleIndex = index % selectedRoles.length;
+          const roleId = selectedRoles[roleIndex];
+          assignedStaff[roleId] = staffMember.id;
+        });
       }
 
       // Initialize tour colors with default colors from tours
@@ -554,6 +555,25 @@ function ScheduleTestComponent() {
                               const assignedStaff = getStaffById(assignedStaffId);
                               const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
                               
+                              // For team events, show "All Staff" instead of individual assignments
+                              if (shift.isTeamEvent) {
+                                return (
+                                  <Box key={roleId} sx={{ mb: 1 }}>
+                                    <Chip
+                                      label="All Staff"
+                                      size="small"
+                                      color="primary"
+                                      variant="filled"
+                                      sx={{ 
+                                        fontSize: '0.7rem', 
+                                        height: 24,
+                                        fontWeight: 'bold'
+                                      }}
+                                    />
+                                  </Box>
+                                );
+                              }
+                              
                               return (
                                 <Box key={roleId} sx={{ mb: 1 }}>
                                   <DroppableRoleTest
@@ -567,8 +587,8 @@ function ScheduleTestComponent() {
                                     timeOffRequests={timeOffRequests || []}
                                     day={day}
                                     shiftIndex={actualShiftIndex}
-                                    onStaffColorChange={() => {}} // Not implemented in test component
-                                    staffColor="gray"
+                                    onStaffColorChange={(staffId, color) => handleStaffColorChange(day, actualShiftIndex, staffId, color)}
+                                    staffColor={shift.staffColors?.[assignedStaffId] || 'default'}
                                     onOpenStaffSelection={handleOpenStaffSelection}
                                   />
                                   {!assignedStaffId && (
@@ -718,6 +738,25 @@ function ScheduleTestComponent() {
                         const assignedStaff = getStaffById(assignedStaffId);
                         const conflicts = assignedStaffId ? getStaffConflicts(assignedStaffId, day, roleId) : [];
                         
+                        // For team events, show "All Staff" instead of individual assignments
+                        if (shift.isTeamEvent) {
+                          return (
+                            <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Chip
+                                label="All Staff"
+                                size="small"
+                                color="primary"
+                                variant="filled"
+                                sx={{ 
+                                  fontSize: '0.7rem', 
+                                  height: 24,
+                                  fontWeight: 'bold'
+                                }}
+                              />
+                            </Box>
+                          );
+                        }
+                        
                         return (
                           <Box key={roleId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <DroppableRoleTest
@@ -731,8 +770,8 @@ function ScheduleTestComponent() {
                               timeOffRequests={timeOffRequests || []}
                               day={day}
                               shiftIndex={actualShiftIndex}
-                              onStaffColorChange={() => {}} // Not implemented in test component
-                              staffColor="gray"
+                              onStaffColorChange={(staffId, color) => handleStaffColorChange(day, actualShiftIndex, staffId, color)}
+                              staffColor={shift.staffColors?.[assignedStaffId] || 'default'}
                               onOpenStaffSelection={handleOpenStaffSelection}
                             />
                             {!assignedStaffId && (
@@ -974,6 +1013,28 @@ function ScheduleTestComponent() {
                 tourColors: { 
                   ...shift.tourColors, 
                   [tourId]: color 
+                } 
+              }
+            : shift
+        )
+      }
+    }));
+  };
+
+  // Staff color change handler
+  const handleStaffColorChange = (day, shiftIndex, staffId, color) => {
+    const dayKey = format(day, 'yyyy-MM-dd');
+    updateLocalSchedule(prev => ({
+      ...prev,
+      [dayKey]: {
+        ...prev[dayKey],
+        shifts: prev[dayKey].shifts.map((shift, index) => 
+          index === shiftIndex 
+            ? { 
+                ...shift, 
+                staffColors: { 
+                  ...shift.staffColors, 
+                  [staffId]: color 
                 } 
               }
             : shift
@@ -1376,9 +1437,26 @@ function ScheduleTestComponent() {
         console.log(`✅ Available staff for role "${role.name}":`, availableStaff.length);
 
         if (availableStaff.length > 0) {
-          // Simple assignment - pick first available staff
-          const selectedStaff = availableStaff[0];
-          console.log(`🎯 ATTEMPTING TO ASSIGN ${selectedStaff.name} to role "${role.name}" on ${dayKey}`);
+          // Sort available staff by target shift priority (highest target gap first)
+          const staffWithPriority = availableStaff.map(staffMember => {
+            const currentAssignments = assignedStaffToday[dayKey]?.filter(id => id === staffMember.id).length || 0;
+            const targetShifts = staffMember.target_shifts || staffMember.targetShifts || 5;
+            const targetGap = targetShifts - currentAssignments; // How many shifts they still need
+            
+            return {
+              staffMember,
+              currentAssignments,
+              targetShifts,
+              targetGap
+            };
+          });
+          
+          // Sort by target gap (descending) - staff with higher targets get priority
+          staffWithPriority.sort((a, b) => b.targetGap - a.targetGap);
+          
+          // Assign the staff member with the highest target gap
+          const selectedStaff = staffWithPriority[0].staffMember;
+          console.log(`🎯 ATTEMPTING TO ASSIGN ${selectedStaff.name} to role "${role.name}" on ${dayKey} (target gap: ${staffWithPriority[0].targetGap})`);
           
           // Double-check conflicts before assignment - create date in local timezone
           const [year, month, day] = dayKey.split('-').map(Number);
@@ -2242,4 +2320,4 @@ function ScheduleTestComponent() {
   );
 }
 
-export default ScheduleTestComponent;
+export default ScheduleBuilderV2;

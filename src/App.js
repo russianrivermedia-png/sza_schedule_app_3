@@ -9,7 +9,7 @@ import TourCreationTab from './components/TourCreationTab';
 import ShiftCreationTab from './components/ShiftCreationTab';
 import TimeOffRequestsTab from './components/TimeOffRequestsTab';
 import ScheduleBuilderTabOld from './components/ScheduleBuilderTabNew';
-import ScheduleBuilderTab from './components/ScheduleTestComponent';
+import ScheduleBuilderTab from './components/ScheduleBuilderV2';
 import ScheduleViewerTab from './components/ScheduleViewerTab';
 import DataManagement from './components/DataManagement';
 import AccountManagementTab from './components/AccountManagementTab';

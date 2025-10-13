@@ -9,12 +9,16 @@ import {
   IconButton,
   Tooltip,
   Avatar,
-  Button
+  Button,
+  Menu,
+  MenuItem,
+  ListItemIcon
 } from '@mui/material';
 import {
   PersonAdd as PersonAddIcon,
   PersonRemove as PersonRemoveIcon,
   Warning as WarningIcon,
+  Circle as CircleIcon
 } from '@mui/icons-material';
 
 function DroppableRoleTest({ 
@@ -32,6 +36,8 @@ function DroppableRoleTest({
   shiftIndex,
   onOpenStaffSelection
 }) {
+  const [colorMenuAnchor, setColorMenuAnchor] = useState(null);
+  
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'staff',
     drop: (item) => {
@@ -58,6 +64,21 @@ function DroppableRoleTest({
   }
 
   const hasConflicts = conflicts && conflicts.length > 0;
+
+  const handleColorClick = (event) => {
+    setColorMenuAnchor(event.currentTarget);
+  };
+
+  const handleColorSelect = (color) => {
+    if (onStaffColorChange && assignedStaff) {
+      onStaffColorChange(assignedStaff.id, color);
+    }
+    setColorMenuAnchor(null);
+  };
+
+  const handleCloseColorMenu = () => {
+    setColorMenuAnchor(null);
+  };
 
   const handleStaffSelectionClick = () => {
     if (onOpenStaffSelection) {
@@ -97,6 +118,7 @@ function DroppableRoleTest({
               day={day}
               shiftIndex={shiftIndex}
               roleId={role.id}
+              onColorClick={handleColorClick}
             />
             <IconButton
               size="small"
@@ -159,12 +181,52 @@ function DroppableRoleTest({
           </Tooltip>
         </Box>
       )}
+
+      {/* Color Picker Menu */}
+      <Menu
+        anchorEl={colorMenuAnchor}
+        open={Boolean(colorMenuAnchor)}
+        onClose={handleCloseColorMenu}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+      >
+        <MenuItem onClick={() => handleColorSelect('red')}>
+          <ListItemIcon>
+            <CircleIcon sx={{ color: '#f44336' }} />
+          </ListItemIcon>
+          Red
+        </MenuItem>
+        <MenuItem onClick={() => handleColorSelect('blue')}>
+          <ListItemIcon>
+            <CircleIcon sx={{ color: '#2196f3' }} />
+          </ListItemIcon>
+          Blue
+        </MenuItem>
+        <MenuItem onClick={() => handleColorSelect('green')}>
+          <ListItemIcon>
+            <CircleIcon sx={{ color: '#4caf50' }} />
+          </ListItemIcon>
+          Green
+        </MenuItem>
+        <MenuItem onClick={() => handleColorSelect('default')}>
+          <ListItemIcon>
+            <CircleIcon sx={{ color: '#9e9e9e' }} />
+          </ListItemIcon>
+          Default Gray
+        </MenuItem>
+      </Menu>
     </Box>
   );
 }
 
 // Draggable Staff Chip Component
-function DraggableStaffChip({ staff, staffColor, hasConflicts, roleName, day, shiftIndex, roleId }) {
+function DraggableStaffChip({ staff, staffColor, hasConflicts, roleName, day, shiftIndex, roleId, onColorClick }) {
   const [{ isDragging }, drag] = useDrag({
     type: 'staff',
     item: { 
@@ -186,9 +248,10 @@ function DraggableStaffChip({ staff, staffColor, hasConflicts, roleName, day, sh
       red: '#f44336',
       blue: '#2196f3',
       green: '#4caf50',
+      default: '#9e9e9e',
       gray: '#9e9e9e'
     };
-    return colorMap[color] || colorMap.gray;
+    return colorMap[color] || colorMap.default;
   };
 
   // Safety check for staff object
@@ -205,6 +268,7 @@ function DraggableStaffChip({ staff, staffColor, hasConflicts, roleName, day, sh
         size="small"
         color={hasConflicts ? 'error' : 'success'}
         variant="filled"
+        onClick={onColorClick}
         sx={{
           maxWidth: '100%',
           cursor: 'grab',

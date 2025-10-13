@@ -650,7 +650,11 @@ function StaffDashboard() {
                   shift.assignedStaff[roleId] === staffMember.id
                 ) : null;
               
-              if (assignedRoleId) {
+              // Include team events for all staff (ignore on-call status)
+              const isTeamEvent = shift.isTeamEvent || shift.is_team_event;
+              const shouldIncludeShift = assignedRoleId || isTeamEvent;
+              
+              if (shouldIncludeShift) {
                 // Find the matching day in our next 7 days
                 const dayInfo = next7Days.find(day => day.dateString === dayKey);
                 if (dayInfo) {
@@ -661,8 +665,13 @@ function StaffDashboard() {
                   
                   if (!shiftAlreadyExists) {
                     // Get the role name for this staff member
-                    const role = roles.find(r => r.id === assignedRoleId);
-                    const roleName = role ? role.name : 'Unassigned';
+                    let roleName = 'Unassigned';
+                    if (isTeamEvent) {
+                      roleName = 'Team Event';
+                    } else if (assignedRoleId) {
+                      const role = roles.find(r => r.id === assignedRoleId);
+                      roleName = role ? role.name : 'Unassigned';
+                    }
                     
                     // Get shift template info
                     const shiftTemplate = shifts && shifts.length > 0 ? shifts.find(s => s.id === shift.shiftId) : null;
@@ -675,7 +684,8 @@ function StaffDashboard() {
                       ...shift,
                       role: roleName,
                       start_time: arrivalTime,
-                      shiftName: shiftTemplate ? shiftTemplate.name : shift.name || 'Unknown Shift'
+                      shiftName: shiftTemplate ? shiftTemplate.name : shift.name || 'Unknown Shift',
+                      isTeamEvent: isTeamEvent
                     });
                   }
                 }
@@ -953,6 +963,15 @@ function StaffDashboard() {
                                 <Typography variant={isMobile ? "caption" : "body2"} color="primary" sx={{ display: 'block' }}>
                                   {shift.role}
                                 </Typography>
+                                {shift.isTeamEvent && (
+                                  <Chip
+                                    label="Team Event"
+                                    size="small"
+                                    color="primary"
+                                    variant="outlined"
+                                    sx={{ fontSize: '0.6rem', height: 16, mt: 0.5 }}
+                                  />
+                                )}
                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: isMobile ? '0.65rem' : '0.75rem' }}>
                                   {shift.start_time}
                             </Typography>

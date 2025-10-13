@@ -408,17 +408,29 @@ function ScheduleBuilderTabNew() {
           });
           if (hasConflict) return false;
           
-          // Check target shifts (simplified)
-          const currentAssignments = weeklyStaffAssignments.get(staffMember.id) || 0;
-          const targetShifts = staffTargetShifts.get(staffMember.id) || 5;
-          if (currentAssignments >= targetShifts) return false;
-          
           return true;
         });
         
         if (availableStaff.length > 0) {
-          // Assign the first available staff member
-          const assignedStaff = availableStaff[0];
+          // Sort available staff by target shift priority (highest target gap first)
+          const staffWithPriority = availableStaff.map(staffMember => {
+            const currentAssignments = weeklyStaffAssignments.get(staffMember.id) || 0;
+            const targetShifts = staffTargetShifts.get(staffMember.id) || 5;
+            const targetGap = targetShifts - currentAssignments; // How many shifts they still need
+            
+            return {
+              staffMember,
+              currentAssignments,
+              targetShifts,
+              targetGap
+            };
+          });
+          
+          // Sort by target gap (descending) - staff with higher targets get priority
+          staffWithPriority.sort((a, b) => b.targetGap - a.targetGap);
+          
+          // Assign the staff member with the highest target gap
+          const assignedStaff = staffWithPriority[0].staffMember;
           
           // Update the working schedule
           workingSchedule[dayKey].shifts[shiftIndex] = {

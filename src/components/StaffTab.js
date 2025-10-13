@@ -30,6 +30,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -47,6 +49,7 @@ import { format } from 'date-fns';
 import { staffHelpers, timeOffHelpers } from '../lib/supabaseHelpers';
 import { DEFAULT_STAFF_COLORS, getAllStaffColors } from '../config/staffColors';
 import RoleAssignmentPanel from './RoleAssignmentPanel';
+import StaffShiftRecordsPanel from './StaffShiftRecordsPanel';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -91,6 +94,7 @@ function StaffTab() {
   const [colorTitles, setColorTitles] = useState({});
   const [editingColorTitle, setEditingColorTitle] = useState(null);
   const nameInputRef = useRef(null);
+  const [panelTabValue, setPanelTabValue] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -996,13 +1000,30 @@ function StaffTab() {
                 </Box>
               </Box>
               
-              {/* Right Panel - Role Assignment History */}
+              {/* Right Panel - Role Assignment History & Shift Records */}
               <Box sx={{ flex: 1, minWidth: 400 }}>
-                <RoleAssignmentPanel 
-                  staffId={editingStaff.id} 
-                  staffName={editingStaff.name}
-                  roles={roles}
-                />
+                <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                  <Tabs value={panelTabValue} onChange={(e, newValue) => setPanelTabValue(newValue)}>
+                    <Tab label="Role Assignments" />
+                    <Tab label="Role Experience" />
+                  </Tabs>
+                </Box>
+                
+                {panelTabValue === 0 && (
+                  <RoleAssignmentPanel 
+                    staffId={editingStaff.id} 
+                    staffName={editingStaff.name}
+                    roles={roles}
+                  />
+                )}
+                
+                {panelTabValue === 1 && (
+                  <StaffShiftRecordsPanel 
+                    staffId={editingStaff.id} 
+                    staffName={editingStaff.name}
+                    roles={roles}
+                  />
+                )}
               </Box>
             </Box>
           ) : (

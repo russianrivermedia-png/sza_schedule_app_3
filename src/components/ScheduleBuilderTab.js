@@ -2045,17 +2045,19 @@ function ScheduleBuilderTab() {
           return true;
         });
 
-        // Sort available staff by current week shifts (ascending) for load balancing
+        // Sort available staff by target shift priority (highest target gap first)
         availableStaff.sort((a, b) => {
           const aCurrentShifts = weeklyStaffAssignments.get(a.id) || 0;
           const bCurrentShifts = weeklyStaffAssignments.get(b.id) || 0;
+          const aTargetShifts = staffTargetShifts.get(a.id) || 5;
+          const bTargetShifts = staffTargetShifts.get(b.id) || 5;
           
-          if (aCurrentShifts !== bCurrentShifts) {
-            return aCurrentShifts - bCurrentShifts;
-          }
+          // Calculate target gap (how many shifts they still need)
+          const aTargetGap = aTargetShifts - aCurrentShifts;
+          const bTargetGap = bTargetShifts - bCurrentShifts;
           
-          // If current shifts are equal, prefer staff with higher target shifts capacity
-          return (staffTargetShifts.get(b.id) || 5) - (staffTargetShifts.get(a.id) || 5);
+          // Sort by target gap (descending) - staff with higher targets get priority
+          return bTargetGap - aTargetGap;
         });
         
         // Try to assign staff to this role

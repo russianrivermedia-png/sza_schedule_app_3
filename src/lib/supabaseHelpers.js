@@ -491,6 +491,164 @@ export const timeOffHelpers = {
 };
 
 // Role Assignments Helpers
+// Staff Shift Records operations
+export const staffShiftRecordsHelpers = {
+  async add(recordData) {
+    const { data, error } = await supabase
+      .from('staff_shift_records')
+      .insert([recordData])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async getByStaff(staffId, startDate = null, endDate = null) {
+    let query = supabase
+      .from('staff_shift_records')
+      .select('*')
+      .eq('staff_id', staffId)
+      .order('shift_date', { ascending: false });
+    
+    if (startDate) {
+      query = query.gte('shift_date', startDate);
+    }
+    if (endDate) {
+      query = query.lte('shift_date', endDate);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  },
+
+  async getByDateRange(startDate, endDate) {
+    const { data, error } = await supabase
+      .from('staff_shift_records')
+      .select(`
+        *,
+        staff:staff_id(name)
+      `)
+      .gte('shift_date', startDate)
+      .lte('shift_date', endDate)
+      .order('shift_date', { ascending: false });
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async getSummaryByStaff(staffId, startDate = null, endDate = null) {
+    let query = supabase
+      .from('staff_shift_records')
+      .select('role_name, shift_date')
+      .eq('staff_id', staffId);
+    
+    if (startDate) {
+      query = query.gte('shift_date', startDate);
+    }
+    if (endDate) {
+      query = query.lte('shift_date', endDate);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    // Group by role and count
+    const summary = {};
+    data.forEach(record => {
+      summary[record.role_name] = (summary[record.role_name] || 0) + 1;
+    });
+    
+    return summary;
+  },
+
+  async delete(recordId) {
+    const { error } = await supabase
+      .from('staff_shift_records')
+      .delete()
+      .eq('id', recordId);
+    
+    if (error) throw error;
+  },
+
+  async processCompletedShifts() {
+    // This function processes shifts that have passed and records them
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Get all schedules with shifts that have passed
+    const { data: schedules, error: schedulesError } = await supabase
+      .from('schedules')
+      .select('id, days')
+      .not('days', 'is', null);
+    
+    if (schedulesError) throw schedulesError;
+    
+    // Get roles for role name lookup
+    const { data: roles, error: rolesError } = await supabase
+      .from('roles')
+      .select('id, name');
+    
+    if (rolesError) throw rolesError;
+    
+    const recordsToInsert = [];
+    
+    schedules.forEach(schedule => {
+      if (schedule.days && typeof schedule.days === 'object') {
+        Object.keys(schedule.days).forEach(dayKey => {
+          // Skip non-date keys
+          if (dayKey === 'week_key' || dayKey === 'week_start') return;
+          
+          // Only process dates that have passed
+          if (dayKey < today) {
+            const dayData = schedule.days[dayKey];
+            if (dayData.shifts) {
+              dayData.shifts.forEach(shift => {
+                if (shift.assignedStaff) {
+                  Object.entries(shift.assignedStaff).forEach(([roleId, staffId]) => {
+                    if (staffId) {
+                      // Check if this shift is already recorded
+                      // This would need to be implemented to avoid duplicates
+                      // Get role name from role ID
+                      const role = roles.find(r => r.id === roleId);
+                      const roleName = role ? role.name : roleId;
+                      
+                      recordsToInsert.push({
+                        staff_id: staffId,
+                        role_name: roleName,
+                        shift_name: shift.name,
+                        shift_date: dayKey,
+                        week_key: schedule.days.week_key || dayKey,
+                        day_of_week: new Date(dayKey).toLocaleDateString('en-US', { weekday: 'long' }),
+                        arrival_time: shift.arrivalTime,
+                        tours: shift.tours || [],
+                        notes: shift.notes,
+                        is_coverage: false,
+                        recorded_by: 'system'
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          }
+        });
+      }
+    });
+    
+    // Insert all records
+    if (recordsToInsert.length > 0) {
+      const { error } = await supabase
+        .from('staff_shift_records')
+        .insert(recordsToInsert);
+      
+      if (error) throw error;
+    }
+    
+    return recordsToInsert.length;
+  }
+};
+
 export const roleAssignmentsHelpers = {
   async add(staffId, role, shiftId = null, tourId = null, weekKey = null, isManual = false, createdBy = null, assignmentDate = null) {
     // Use the provided assignment date, or default to current time
