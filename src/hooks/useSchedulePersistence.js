@@ -12,6 +12,19 @@ export const useSchedulePersistence = (dispatch) => {
     try {
       console.log('💾 Saving schedule to database...', { weekKey, localSchedule });
       
+      // Debug: Check tours in shifts before saving
+      Object.keys(localSchedule).forEach(dayKey => {
+        if (localSchedule[dayKey]?.shifts) {
+          localSchedule[dayKey].shifts.forEach((shift, index) => {
+            console.log(`🔍 Shift ${index} on ${dayKey}:`, {
+              name: shift.name,
+              tours: shift.tours,
+              toursLength: shift.tours?.length || 0
+            });
+          });
+        }
+      });
+      
       // Prepare data for database - the existing structure stores week info in days
       const scheduleData = {
         days: {

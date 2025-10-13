@@ -50,12 +50,12 @@ function Navigation() {
     { label: 'Time Off', path: '/time-off' },
     { label: 'Accounts', path: '/accounts' },
     { label: 'ICS Import', path: '/ics-import' },
-    { label: 'Test Schedule', path: '/test-schedule' },
+    { label: 'Old Builder', path: '/old-builder' },
   ];
 
   // Main tabs (role-based visibility)
   const allMainTabs = [
-    { label: 'Builder', path: '/builder', requiredRole: 'supervisor', icon: <BuilderIcon /> },
+    { label: 'Builder v2', path: '/builder', requiredRole: 'supervisor', icon: <BuilderIcon /> },
     { label: 'Viewer', path: '/viewer', requiredRole: 'staff', icon: <ViewerIcon /> },
     { label: 'Dashboard', path: '/dashboard', requiredRole: 'staff', icon: <DashboardIcon /> },
     { label: 'Data', path: '/data', requiredRole: 'manager', icon: <DataIcon /> },

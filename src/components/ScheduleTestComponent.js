@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import {
@@ -88,6 +88,11 @@ function ScheduleTestComponent() {
     getRoleById,
     getTimeOffByStaffId
   } = useData();
+
+  console.log('🔍 ScheduleTestComponent render - loading:', loading);
+  console.log('🔍 ScheduleTestComponent render - staff:', staff?.length);
+  console.log('🔍 ScheduleTestComponent render - shifts:', shifts?.length);
+  console.log('🔍 ScheduleTestComponent render - roles:', roles?.length);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [selectedWeek, setSelectedWeek] = useState(new Date());
@@ -152,6 +157,18 @@ function ScheduleTestComponent() {
   } = useLocalSchedule(selectedWeek, schedules);
   
   const { saveSchedule } = useSchedulePersistence(dispatch);
+
+  // Debug: Log shift templates to see their tours
+  useEffect(() => {
+    if (shifts && shifts.length > 0) {
+      console.log('🔍 All shift templates:', shifts.map(s => ({
+        id: s.id,
+        name: s.name,
+        tours: s.tours,
+        toursLength: s.tours?.length || 0
+      })));
+    }
+  }, [shifts]);
   
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 0 });
   const weekDates = DAYS_OF_WEEK.map((_, index) => addDays(weekStart, index));
@@ -373,7 +390,7 @@ function ScheduleTestComponent() {
       setSelectedRoles([]);
       setSelectedTours([]);
       setIsTeamEvent(false);
-      setOpenShiftDialog(false);
+      setOpenCustomShiftDialog(false);
 
       console.log('✅ Shift template created and added to schedule:', newShiftTemplate.name);
 
@@ -896,15 +913,6 @@ function ScheduleTestComponent() {
       const dayOfWeek = DAYS_OF_WEEK[day.getDay()];
       
       // Enhanced debugging for date handling
-      console.log(`🔍 DATE DEBUG for ${staffMember.name}:`, {
-        originalDay: day,
-        dayString: day.toString(),
-        dayISO: day.toISOString(),
-        dayLocal: day.toLocaleDateString(),
-        dayOfWeekIndex: day.getDay(),
-        dayOfWeek: dayOfWeek,
-        timezoneOffset: day.getTimezoneOffset()
-      });
       
       // Ensure availability is an array
       let availabilityArray = staffMember.availability;
@@ -922,35 +930,13 @@ function ScheduleTestComponent() {
         availabilityArray = [];
       }
       
-      // Special debugging for Bruce
-      if (staffMember.name === 'Bruce Consuegra') {
-        console.log(`🔍 BRUCE DEBUG - Availability check:`, {
-          name: staffMember.name,
-          dayOfWeek,
-          dayIndex: day.getDay(),
-          rawAvailability: staffMember.availability,
-          parsedAvailability: availabilityArray,
-          availabilityType: typeof staffMember.availability,
-          isAvailable: availabilityArray.includes(dayOfWeek),
-          allDaysOfWeek: DAYS_OF_WEEK
-        });
-      }
       
-      console.log(`🔍 Availability check for ${staffMember.name}:`, {
-        dayOfWeek,
-        dayIndex: day.getDay(),
-        staffAvailability: availabilityArray,
-        staffAvailabilityType: typeof staffMember.availability,
-        isAvailable: availabilityArray.includes(dayOfWeek)
-      });
       
       if (!availabilityArray.includes(dayOfWeek)) {
         conflicts.push(`Staff not available on ${dayOfWeek}`);
-        console.log(`🚫 ${staffMember.name} NOT AVAILABLE on ${dayOfWeek} - Adding conflict`);
       }
     }
 
-    console.log(`🔍 getStaffConflicts returning ${conflicts.length} conflicts for ${staffMember?.name}:`, conflicts);
     return conflicts;
   };
 
@@ -1021,14 +1007,22 @@ function ScheduleTestComponent() {
 
   // Helper function to get tours for a shift
   const getShiftTours = (shift) => {
-    if (!shift.tours || shift.tours.length === 0) return [];
+    if (!shift.tours || shift.tours.length === 0) {
+      console.log(`🔍 Shift "${shift.name}" has no tours:`, shift.tours);
+      return [];
+    }
+    
+    console.log(`🔍 Shift "${shift.name}" tours array:`, shift.tours);
+    console.log(`🔍 Global tours array:`, tours?.length, 'tours available');
     
     // Get tour objects from the global tours array
-    const shiftTours = shift.tours.map(tourId => 
-      tours?.find(tour => tour.id === tourId)
-    ).filter(Boolean); // Remove any undefined tours
+    const shiftTours = shift.tours.map(tourId => {
+      const tour = tours?.find(tour => tour.id === tourId);
+      console.log(`🔍 Looking for tour ${tourId}:`, tour ? tour.name : 'NOT FOUND');
+      return tour;
+    }).filter(Boolean); // Remove any undefined tours
     
-    console.log(`🔍 Sorting tours for shift "${shift.name}":`, shiftTours.map(t => t.name));
+    console.log(`🔍 Found tours for shift "${shift.name}":`, shiftTours.map(t => t.name));
     
     // Sort tours by time (morning to evening) for chronological display order
     const sortedTours = shiftTours.sort((a, b) => {
@@ -1268,10 +1262,6 @@ function ScheduleTestComponent() {
     setAssignmentResults(null);
     
     try {
-      console.log('🤖 Starting auto-assignment...');
-      console.log('📊 Available staff:', staff?.length || 0);
-      console.log('📊 Available roles:', roles?.length || 0);
-      console.log('📊 Local schedule:', localSchedule);
       
       let totalRoles = 0;
       let assignedRoles = 0;
@@ -1309,25 +1299,11 @@ function ScheduleTestComponent() {
         });
       });
 
-      console.log(`🎯 Total roles to assign: ${totalRoles}`);
-      console.log(`📋 Roles to assign:`, rolesToAssign);
       
       // Debug: Show available roles and staff training
-      console.log(`🔍 Available roles:`, roles?.map(r => ({ id: r.id, name: r.name, tier: r.tier })));
-      console.log(`👥 Staff training summary:`, staff?.map(s => ({ 
-        name: s.name, 
-        trained_roles: s.trained_roles,
-        trained_role_names: s.trained_roles?.map(roleId => roles?.find(r => r.id === roleId)?.name).filter(Boolean)
-      })));
 
       // Sort by tier (1 = highest priority)
       rolesToAssign.sort((a, b) => a.tier - b.tier);
-      
-      console.log(`🔄 Processing ${rolesToAssign.length} roles by tier:`, rolesToAssign.map(r => ({ 
-        roleName: getRoleById(r.roleId)?.name, 
-        tier: r.tier, 
-        dayKey: r.dayKey 
-      })));
 
       // Assign staff to roles
       const assignedStaffToday = {}; // Track staff assignments per day
@@ -1452,7 +1428,6 @@ function ScheduleTestComponent() {
         }
       }
 
-      console.log(`📊 Assignment complete: ${assignedRoles}/${totalRoles} roles assigned`);
 
       setAssignmentResults({
         totalRoles,
@@ -1482,7 +1457,7 @@ function ScheduleTestComponent() {
     <DndProvider backend={HTML5Backend}>
       <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        Schedule Hooks Test
+        Schedule Builder
       </Typography>
       
       {/* Week Navigation */}
@@ -1508,13 +1483,12 @@ function ScheduleTestComponent() {
             variant="outlined"
             size={isMobile ? "small" : "medium"}
             onClick={() => setSelectedWeek(prev => addDays(prev, -7))}
-            startIcon={!isMobile ? <ChevronLeftIcon /> : null}
             sx={{ 
-              minWidth: isMobile ? 'auto' : 'auto',
-              fontSize: isMobile ? '0.75rem' : '0.875rem'
+              minWidth: 'auto',
+              px: isMobile ? 1 : 2
             }}
           >
-            {isMobile ? '← Prev' : 'Previous Week'}
+            <ChevronLeftIcon />
           </Button>
           
           <Button
@@ -1534,13 +1508,12 @@ function ScheduleTestComponent() {
             variant="outlined"
             size={isMobile ? "small" : "medium"}
             onClick={() => setSelectedWeek(prev => addDays(prev, 7))}
-            startIcon={!isMobile ? <ChevronRightIcon /> : null}
             sx={{ 
-              minWidth: isMobile ? 'auto' : 'auto',
-              fontSize: isMobile ? '0.75rem' : '0.875rem'
+              minWidth: 'auto',
+              px: isMobile ? 1 : 2
             }}
           >
-            {isMobile ? 'Next →' : 'Next Week'}
+            <ChevronRightIcon />
           </Button>
         </Box>
       </Box>
@@ -1555,12 +1528,21 @@ function ScheduleTestComponent() {
           justifyContent: isMobile ? 'center' : 'flex-start'
         }}>
           <Button 
-            variant="contained" 
-            onClick={handleTestUpdate}
+            variant="outlined" 
+            onClick={handleTestClear}
             size={isMobile ? "small" : "medium"}
             sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
           >
-            {isMobile ? 'Add Shift' : 'Add Test Shift'}
+            {isMobile ? 'Clear Staff' : 'Clear Staff'}
+          </Button>
+          <Button 
+            variant="outlined" 
+            color="warning" 
+            onClick={handleClearShifts}
+            size={isMobile ? "small" : "medium"}
+            sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+          >
+            {isMobile ? 'Clear Shifts' : 'Clear Shifts'}
           </Button>
           <Button 
             variant="contained" 
@@ -1570,24 +1552,7 @@ function ScheduleTestComponent() {
             size={isMobile ? "small" : "medium"}
             sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
           >
-            {hasUnsavedChanges ? (isMobile ? 'Save' : 'Save Changes') : (isMobile ? 'No Changes' : 'No Changes')}
-          </Button>
-          <Button 
-            variant="outlined" 
-            onClick={handleTestClear}
-            size={isMobile ? "small" : "medium"}
-            sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
-          >
-            {isMobile ? 'Clear Assign' : 'Clear Assignments'}
-          </Button>
-          <Button 
-            variant="outlined" 
-            color="warning" 
-            onClick={handleClearShifts}
-            size={isMobile ? "small" : "medium"}
-            sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
-          >
-            {isMobile ? 'Clear Shifts' : 'Clear All Shifts'}
+            {isMobile ? 'Save' : 'Save'}
           </Button>
           <Button 
             variant="outlined" 
@@ -1595,9 +1560,8 @@ function ScheduleTestComponent() {
             size={isMobile ? "small" : "medium"}
             sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
           >
-            {isMobile ? 'Reset' : 'Reset to DB'}
+            {isMobile ? 'Reset' : 'Reset'}
           </Button>
-          
           <Button 
             variant="contained" 
             color="primary"
@@ -1607,9 +1571,8 @@ function ScheduleTestComponent() {
             size={isMobile ? "small" : "medium"}
             sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
           >
-            {isAutoAssigning ? (isMobile ? 'Assigning...' : 'Auto Assigning...') : (isMobile ? 'Auto Assign' : 'Auto Assign Staff')}
+            {isAutoAssigning ? (isMobile ? 'Assigning...' : 'Assigning...') : (isMobile ? 'Assign' : 'Assign')}
           </Button>
-          
         </Box>
         
         <Alert severity={hasUnsavedChanges ? 'warning' : 'success'} sx={{ mb: 2 }}>
@@ -1743,129 +1706,11 @@ function ScheduleTestComponent() {
         </MenuItem>
       </Menu>
       
-      {/* Staff Panel for Drag & Drop */}
-      <Box sx={{ mt: 3 }}>
-        <Typography variant={isMobile ? "subtitle1" : "h6"} gutterBottom>
-          Available Staff
-        </Typography>
-        <Box sx={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          gap: 1,
-          p: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: 1,
-          bgcolor: 'grey.50'
-        }}>
-          {(staff || []).filter(Boolean).filter(member => !member.on_call).map(staffMember => (
-            <DraggableStaff
-              key={staffMember.id}
-              staff={staffMember}
-              roles={roles || []}
-            >
-              <Chip
-                avatar={
-                  <Avatar sx={{ 
-                    width: isMobile ? 20 : 24, 
-                    height: isMobile ? 20 : 24,
-                    fontSize: isMobile ? '0.7rem' : '0.8rem'
-                  }}>
-                    {staffMember.name.charAt(0)}
-                  </Avatar>
-                }
-                label={isMobile ? staffMember.name.substring(0, 8) + '...' : staffMember.name}
-                size="small"
-                sx={{ 
-                  fontSize: isMobile ? '0.7rem' : '0.75rem',
-                  cursor: 'grab',
-                  '&:active': { cursor: 'grabbing' }
-                }}
-              />
-            </DraggableStaff>
-          ))}
-        </Box>
-        
-        {/* On-Call Staff Section */}
-        {(staff || []).filter(member => member.on_call).length > 0 && (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant={isMobile ? "subtitle2" : "subtitle1"} gutterBottom color="warning.main">
-              On-Call Staff (Not Available for Regular Scheduling)
-            </Typography>
-            <Box sx={{ 
-              display: 'flex', 
-              flexWrap: 'wrap', 
-              gap: 1,
-              p: 2,
-              border: '1px solid',
-              borderColor: 'warning.main',
-              borderRadius: 1,
-              bgcolor: 'warning.50'
-            }}>
-              {(staff || []).filter(Boolean).filter(member => member.on_call).map(staffMember => (
-                <Chip
-                  key={staffMember.id}
-                  avatar={
-                    <Avatar sx={{ 
-                      width: isMobile ? 20 : 24, 
-                      height: isMobile ? 20 : 24,
-                      fontSize: isMobile ? '0.7rem' : '0.8rem',
-                      bgcolor: 'warning.main'
-                    }}>
-                      {staffMember.name.charAt(0)}
-                    </Avatar>
-                  }
-                  label={isMobile ? staffMember.name.substring(0, 8) + '...' : staffMember.name}
-                  size="small"
-                  color="warning"
-                  variant="outlined"
-                  sx={{ 
-                    fontSize: isMobile ? '0.7rem' : '0.75rem',
-                    opacity: 0.7
-                  }}
-                />
-              ))}
-            </Box>
-          </Box>
-        )}
-      </Box>
-      
-      <Box sx={{ mt: 3 }}>
-        <Typography variant={isMobile ? "subtitle1" : "h6"} gutterBottom>
-          Debug Info
-        </Typography>
-        <Box
-          component="pre"
-          sx={{
-            background: '#f5f5f5',
-            padding: isMobile ? 1 : 2,
-            borderRadius: 1,
-            fontSize: isMobile ? '10px' : '12px',
-            overflow: 'auto',
-            maxHeight: isMobile ? '150px' : '200px',
-            fontFamily: 'monospace',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word'
-          }}
-        >
-          {JSON.stringify(localSchedule, null, 2)}
-        </Box>
-      </Box>
-
       {/* Add Shifts Dialog */}
       <Dialog 
         open={openShiftDialog} 
         onClose={() => {
           setOpenShiftDialog(false);
-          // Reset form when dialog closes
-          setShiftName('');
-          setShiftDescription('');
-          setShiftStartTime('');
-          setShiftEndTime('');
-          setDefaultStartingTime('');
-          setSelectedRoles([]);
-          setSelectedTours([]);
-          setIsTeamEvent(false);
           setSelectedShifts([]);
         }} 
         maxWidth="md" 
@@ -1885,178 +1730,44 @@ function ScheduleTestComponent() {
               </Typography>
             </Alert>
             
-            <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-              {(shifts || [])
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map(shift => (
-                <Box
-                  key={shift.id}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    p: 1,
-                    border: '1px solid',
-                    borderColor: selectedShifts.includes(shift.id) ? 'primary.main' : 'divider',
-                    borderRadius: 1,
-                    mb: 1,
-                    cursor: 'pointer',
-                    bgcolor: selectedShifts.includes(shift.id) ? 'primary.50' : 'background.paper',
-                    '&:hover': {
-                      bgcolor: selectedShifts.includes(shift.id) ? 'primary.100' : 'grey.50',
-                    }
-                  }}
-                  onClick={() => handleShiftSelection(shift.id)}
-                >
-                  <Box sx={{ mr: 2 }}>
-                    {selectedShifts.includes(shift.id) ? (
-                      <Typography color="primary">✓</Typography>
-                    ) : (
-                      <Typography color="text.secondary">○</Typography>
-                    )}
-                  </Box>
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Typography variant="body1" fontWeight="medium">
-                      {shift.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {shift.description || 'No description available'}
-                    </Typography>
-                  </Box>
+            {(shifts || [])
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(shift => (
+              <Box
+                key={shift.id}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  p: 1,
+                  border: '1px solid',
+                  borderColor: selectedShifts.includes(shift.id) ? 'primary.main' : 'divider',
+                  borderRadius: 1,
+                  mb: 1,
+                  cursor: 'pointer',
+                  bgcolor: selectedShifts.includes(shift.id) ? 'primary.50' : 'background.paper',
+                  '&:hover': {
+                    bgcolor: selectedShifts.includes(shift.id) ? 'primary.100' : 'grey.50',
+                  }
+                }}
+                onClick={() => handleShiftSelection(shift.id)}
+              >
+                <Box sx={{ mr: 2 }}>
+                  {selectedShifts.includes(shift.id) ? (
+                    <Typography color="primary">✓</Typography>
+                  ) : (
+                    <Typography color="text.secondary">○</Typography>
+                  )}
                 </Box>
-              ))}
-            </Box>
-            
-            {/* Custom Shift Creation */}
-            <Divider sx={{ my: 3 }} />
-            <Typography variant="h6" gutterBottom>
-              Or Create New Custom Shift
-            </Typography>
-            
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                label="Shift Name *"
-                value={shiftName}
-                onChange={(e) => setShiftName(e.target.value)}
-                placeholder="e.g., Morning Adventure"
-                fullWidth
-                required
-              />
-              
-              <TextField
-                label="Description"
-                value={shiftDescription}
-                onChange={(e) => setShiftDescription(e.target.value)}
-                placeholder="Describe what this shift involves..."
-                fullWidth
-                multiline
-                rows={3}
-              />
-              
-              <TextField
-                label="Default Starting Time (Optional)"
-                type="time"
-                value={defaultStartingTime}
-                onChange={(e) => setDefaultStartingTime(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                helperText="This time will be pre-filled in the arrival time slot when this shift is used"
-                fullWidth
-              />
-              
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={isTeamEvent}
-                    onChange={(e) => setIsTeamEvent(e.target.checked)}
-                    color="primary"
-                  />
-                }
-                label="Team Event (Assigns all staff members)"
-              />
-              
-              {isTeamEvent && (
-                <Alert severity="info">
-                  This shift will automatically assign all staff members when added to a schedule.
-                </Alert>
-              )}
-              
-              <FormControl fullWidth required>
-                <InputLabel>Required Roles *</InputLabel>
-                <Select
-                  multiple
-                  value={selectedRoles}
-                  onChange={(e) => setSelectedRoles(e.target.value)}
-                  input={<OutlinedInput label="Required Roles *" />}
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {selected.map((value) => {
-                        const role = roles?.find(r => r.id === value);
-                        return (
-                          <MuiChip 
-                            key={value} 
-                            label={role?.name || value}
-                            size="small"
-                            color="primary"
-                            variant="outlined"
-                          />
-                        );
-                      })}
-                    </Box>
-                  )}
-                >
-                  {(roles || []).map((role) => (
-                    <MenuItem key={role.id} value={role.id}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <MuiChip 
-                          label={`Tier ${role.tier || 1}`}
-                          size="small"
-                          color={role.tier === 1 ? 'error' : role.tier === 2 ? 'warning' : 'default'}
-                          variant="outlined"
-                        />
-                        <Typography>{role.name}</Typography>
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              <FormControl fullWidth>
-                <InputLabel>Attach Tours (Optional)</InputLabel>
-                <Select
-                  multiple
-                  value={selectedTours}
-                  onChange={(e) => setSelectedTours(e.target.value)}
-                  input={<OutlinedInput label="Attach Tours (Optional)" />}
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {selected.map((value) => {
-                        const tour = tours?.find(t => t.id === value);
-                        return (
-                          <MuiChip 
-                            key={value} 
-                            label={tour?.name || value}
-                            size="small"
-                            color="secondary"
-                            variant="outlined"
-                          />
-                        );
-                      })}
-                    </Box>
-                  )}
-                >
-                  {(tours || []).map((tour) => (
-                    <MenuItem key={tour.id} value={tour.id}>
-                      {tour.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              {selectedRoles.length === 0 && (
-                <Alert severity="warning">
-                  Please select at least one required role for this shift.
-                </Alert>
-              )}
-            </Box>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="body1" fontWeight="medium">
+                    {shift.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {shift.description || 'No description available'}
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
           </Box>
         </DialogContent>
         <DialogActions>
@@ -2064,19 +1775,169 @@ function ScheduleTestComponent() {
             Cancel
           </Button>
           <Button 
-            onClick={handleAddCustomShift}
-            variant="outlined"
-            disabled={!shiftName.trim() || selectedRoles.length === 0}
-            sx={{ mr: 1 }}
-          >
-            Create Custom Shift
-          </Button>
-          <Button 
             onClick={handleAddShiftsToDay}
             variant="contained"
             disabled={selectedShifts.length === 0}
           >
             Add {selectedShifts.length} Shift{selectedShifts.length !== 1 ? 's' : ''}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Custom Shift Creation Dialog */}
+      <Dialog 
+        open={openCustomShiftDialog} 
+        onClose={() => {
+          setOpenCustomShiftDialog(false);
+          // Reset form when dialog closes
+          setShiftName('');
+          setShiftDescription('');
+          setDefaultStartingTime('');
+          setSelectedRoles([]);
+          setSelectedTours([]);
+          setIsTeamEvent(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Create Custom Shift</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              label="Shift Name *"
+              value={shiftName}
+              onChange={(e) => setShiftName(e.target.value)}
+              placeholder="e.g., Morning Adventure"
+              fullWidth
+              required
+            />
+            
+            <TextField
+              label="Description"
+              value={shiftDescription}
+              onChange={(e) => setShiftDescription(e.target.value)}
+              placeholder="Describe what this shift involves..."
+              fullWidth
+              multiline
+              rows={3}
+            />
+            
+            <TextField
+              label="Default Starting Time (Optional)"
+              type="time"
+              value={defaultStartingTime}
+              onChange={(e) => setDefaultStartingTime(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              helperText="This time will be pre-filled in the arrival time slot when this shift is used"
+              fullWidth
+            />
+            
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={isTeamEvent}
+                  onChange={(e) => setIsTeamEvent(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label="Team Event (Assigns all staff members)"
+            />
+            
+            {isTeamEvent && (
+              <Alert severity="info">
+                This shift will automatically assign all staff members when added to a schedule.
+              </Alert>
+            )}
+            
+            <FormControl fullWidth required>
+              <InputLabel>Required Roles *</InputLabel>
+              <Select
+                multiple
+                value={selectedRoles}
+                onChange={(e) => setSelectedRoles(e.target.value)}
+                input={<OutlinedInput label="Required Roles *" />}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => {
+                      const role = roles?.find(r => r.id === value);
+                      return (
+                        <MuiChip 
+                          key={value} 
+                          label={role?.name || value}
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                        />
+                      );
+                    })}
+                  </Box>
+                )}
+              >
+                {(roles || []).map((role) => (
+                  <MenuItem key={role.id} value={role.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <MuiChip 
+                        label={`Tier ${role.tier || 1}`}
+                        size="small"
+                        color={role.tier === 1 ? 'error' : role.tier === 2 ? 'warning' : 'default'}
+                        variant="outlined"
+                      />
+                      <Typography>{role.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl fullWidth>
+              <InputLabel>Attach Tours (Optional)</InputLabel>
+              <Select
+                multiple
+                value={selectedTours}
+                onChange={(e) => setSelectedTours(e.target.value)}
+                input={<OutlinedInput label="Attach Tours (Optional)" />}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => {
+                      const tour = tours?.find(t => t.id === value);
+                      return (
+                        <MuiChip 
+                          key={value} 
+                          label={tour?.name || value}
+                          size="small"
+                          color="secondary"
+                          variant="outlined"
+                        />
+                      );
+                    })}
+                  </Box>
+                )}
+              >
+                {(tours || []).map((tour) => (
+                  <MenuItem key={tour.id} value={tour.id}>
+                    {tour.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            {selectedRoles.length === 0 && (
+              <Alert severity="warning">
+                Please select at least one required role for this shift.
+              </Alert>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCustomShiftDialog(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAddCustomShift}
+            variant="contained"
+            disabled={!shiftName.trim() || selectedRoles.length === 0}
+          >
+            Create Custom Shift
           </Button>
         </DialogActions>
       </Dialog>

@@ -297,6 +297,15 @@ export function DataProvider({ children }) {
       dispatch({ type: 'SET_ROLES', payload: rolesResult.data || [] });
       
       dispatch({ type: 'SET_SHIFTS', payload: shiftsResult.data || [] });
+      // Debug: Log tour data to check default_color field
+      console.log('🔍 DataContext - Tour data debug:', toursResult.data?.map(tour => ({
+        id: tour.id,
+        name: tour.name,
+        default_color: tour.default_color,
+        hasDefaultColor: !!tour.default_color,
+        fullTourData: tour
+      })));
+      
       dispatch({ type: 'SET_TOURS', payload: toursResult.data || [] });
       // Transform schedules data to include weekKey for compatibility
       const transformedSchedules = (schedulesResult.data || []).map(schedule => {
@@ -325,6 +334,22 @@ export function DataProvider({ children }) {
         if (weekKey === '2025-09-07' && schedule.days && schedule.days['2025-09-07'] && schedule.days['2025-09-07'].shifts) {
           console.log('🔍 DataContext - Sample shift from 2025-09-07:', schedule.days['2025-09-07'].shifts[0]);
         }
+        
+        // Debug: Check tours in all shifts for this schedule
+        Object.keys(schedule.days).forEach(dayKey => {
+          if (dayKey !== 'week_key' && dayKey !== 'week_start' && schedule.days[dayKey]?.shifts) {
+            schedule.days[dayKey].shifts.forEach((shift, index) => {
+              if (shift.tours && shift.tours.length > 0) {
+                console.log(`🔍 Found shift with tours on ${dayKey}:`, {
+                  name: shift.name,
+                  tours: shift.tours,
+                  toursLength: shift.tours.length,
+                  shiftId: shift.shiftId || shift.id
+                });
+              }
+            });
+          }
+        });
         
         return {
           ...schedule,

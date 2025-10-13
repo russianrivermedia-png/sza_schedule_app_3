@@ -20,15 +20,32 @@ export const getAllTourColors = () => {
 
 // Helper function to get tour color value (for background color)
 export const getTourColorValue = (tour, shiftTourColors, tourId) => {
+  // Debug: Log the color resolution process
+  console.log(`🎨 getTourColorValue - Debug:`, {
+    tourId,
+    tourName: tour?.name,
+    tourDefaultColor: tour?.default_color,
+    shiftTourColors,
+    hasShiftColor: !!(shiftTourColors && shiftTourColors[tourId]),
+    shiftColorValue: shiftTourColors?.[tourId],
+    fullTourData: tour
+  });
+  
   // First check if there's a custom color for this tour in this shift
   if (shiftTourColors && shiftTourColors[tourId]) {
-    return shiftTourColors[tourId];
+    const shiftColorKey = shiftTourColors[tourId];
+    const shiftColorData = getTourColor(shiftColorKey);
+    console.log(`🎨 getTourColorValue - Using shift color:`, { shiftColorKey, shiftColorData });
+    return shiftColorData.color;
   }
   // Then check the tour's default color
   if (tour && tour.default_color) {
     const colorKey = tour.default_color;
-    return getTourColor(colorKey).color;
+    const colorData = getTourColor(colorKey);
+    console.log(`🎨 getTourColorValue - Using tour default color:`, { colorKey, colorData });
+    return colorData.color;
   }
   // Fallback to default
+  console.log(`🎨 getTourColorValue - Using fallback default color`);
   return DEFAULT_TOUR_COLORS.default.color;
 };

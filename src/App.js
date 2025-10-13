@@ -8,7 +8,8 @@ import RoleCreationTab from './components/RoleCreationTab';
 import TourCreationTab from './components/TourCreationTab';
 import ShiftCreationTab from './components/ShiftCreationTab';
 import TimeOffRequestsTab from './components/TimeOffRequestsTab';
-import ScheduleBuilderTab from './components/ScheduleBuilderTabNew';
+import ScheduleBuilderTabOld from './components/ScheduleBuilderTabNew';
+import ScheduleBuilderTab from './components/ScheduleTestComponent';
 import ScheduleViewerTab from './components/ScheduleViewerTab';
 import DataManagement from './components/DataManagement';
 import AccountManagementTab from './components/AccountManagementTab';
@@ -17,7 +18,6 @@ import StaffRegistration from './components/StaffRegistration';
 import LoginForm from './components/LoginForm';
 import ProtectedRoute from './components/ProtectedRoute';
 import ICSImportTab from './components/ICSImportTab';
-import ScheduleTestComponent from './components/ScheduleTestComponent';
 import { DataProvider } from './context/DataContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -89,16 +89,19 @@ function App() {
                       <ICSImportTab />
                     </ProtectedRoute>
                   } />
-                  <Route path="/test-schedule" element={
-                    <ProtectedRoute requiredRole="manager">
-                      <ScheduleTestComponent />
-                    </ProtectedRoute>
-                  } />
+                  
+                  {/* Temporary redirect for old test-schedule route */}
+                  <Route path="/test-schedule" element={<Navigate to="/builder" replace />} />
                   
                   {/* Supervisor and above routes */}
                   <Route path="/builder" element={
                     <ProtectedRoute requiredRole="supervisor">
                       <ScheduleBuilderTab />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/old-builder" element={
+                    <ProtectedRoute requiredRole="supervisor">
+                      <ScheduleBuilderTabOld />
                     </ProtectedRoute>
                   } />
                   

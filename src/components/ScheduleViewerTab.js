@@ -77,9 +77,57 @@ function ScheduleViewerTab() {
     );
   }
 
+  // Helper function to parse time from tour name for chronological sorting
+  const parseTimeFromTourName = (tourName) => {
+    // Match patterns like "9:00 AM", "2:30 PM", "12:15 PM", etc.
+    const timeMatch = tourName.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!timeMatch) {
+      console.log(`⚠️ ScheduleViewerTab - Could not parse time from tour name: "${tourName}"`);
+      return 0; // Default to midnight if no time found
+    }
+    
+    const [, hours, minutes, period] = timeMatch;
+    let totalMinutes = parseInt(hours) * 60 + parseInt(minutes);
+    
+    // Convert to 24-hour format
+    if (period.toUpperCase() === 'PM' && hours !== '12') {
+      totalMinutes += 12 * 60;
+    } else if (period.toUpperCase() === 'AM' && hours === '12') {
+      totalMinutes -= 12 * 60;
+    }
+    
+    console.log(`🕐 ScheduleViewerTab - Parsed "${tourName}" -> ${totalMinutes} minutes (${hours}:${minutes} ${period})`);
+    return totalMinutes;
+  };
+
   const getShiftTours = (shift) => {
-    if (!shift.tours || shift.tours.length === 0 || !tours) return [];
-    return shift.tours.map(tourId => tours.find(t => t.id === tourId)).filter(Boolean);
+    console.log(`🔍 ScheduleViewerTab - getShiftTours for "${shift.name}":`, {
+      shiftTours: shift.tours,
+      toursLength: shift.tours?.length || 0,
+      globalTours: tours?.length || 0
+    });
+    
+    if (!shift.tours || shift.tours.length === 0 || !tours) {
+      console.log(`❌ ScheduleViewerTab - No tours found for "${shift.name}"`);
+      return [];
+    }
+    
+    const foundTours = shift.tours.map(tourId => {
+      const tour = tours.find(t => t.id === tourId);
+      console.log(`🔍 ScheduleViewerTab - Looking for tour ${tourId}:`, tour ? tour.name : 'NOT FOUND');
+      return tour;
+    }).filter(Boolean);
+    
+    // Sort tours chronologically (earliest to latest)
+    const sortedTours = foundTours.sort((a, b) => {
+      const timeA = parseTimeFromTourName(a.name);
+      const timeB = parseTimeFromTourName(b.name);
+      console.log(`📊 ScheduleViewerTab - Comparing "${a.name}" (${timeA}) vs "${b.name}" (${timeB}) -> ${timeA - timeB}`);
+      return timeA - timeB;
+    });
+    
+    console.log(`✅ ScheduleViewerTab - Found ${sortedTours.length} tours for "${shift.name}":`, sortedTours.map(t => t.name));
+    return sortedTours;
   };
 
   // Helper function to get staff color value
@@ -90,6 +138,29 @@ function ScheduleViewerTab() {
   // Helper function to get tour color value
   const getTourColor = (tour, shiftTourColors, tourId) => {
     return getTourColorValue(tour, shiftTourColors, tourId);
+  };
+
+  // Helper function to determine text color based on background color
+  const getTourTextColor = (tour, shiftTourColors, tourId) => {
+    const backgroundColor = getTourColor(tour, shiftTourColors, tourId);
+    
+    // Debug: Log tour color information
+    console.log(`🎨 ScheduleViewerTab - Tour color debug:`, {
+      tourId,
+      tourName: tour?.name,
+      tourDefaultColor: tour?.default_color,
+      shiftTourColors,
+      backgroundColor,
+      colorKey: tour?.default_color
+    });
+    
+    // Check if it's a light color that needs black text
+    if (backgroundColor === '#ffeb3b' || backgroundColor === '#ffeb3b') { // yellow
+      return '#000';
+    }
+    
+    // For all other colors, use white text
+    return '#fff';
   };
 
   const exportToPDF = () => {
@@ -173,7 +244,8 @@ function ScheduleViewerTab() {
     
     console.log('🔍 ScheduleViewerTab - Rendering day:', { dayKey, daySchedule, dayOfWeek });
     if (daySchedule.shifts && daySchedule.shifts.length > 0) {
-      console.log('🔍 ScheduleViewerTab - Sample shift structure:', daySchedule.shifts[0]);
+        console.log('🔍 ScheduleViewerTab - Sample shift structure:', daySchedule.shifts[0]);
+        console.log('🔍 ScheduleViewerTab - Sample shift tours:', daySchedule.shifts[0]?.tours);
     }
 
     if (daySchedule.shifts.length === 0) {
@@ -286,7 +358,7 @@ function ScheduleViewerTab() {
                               fontSize: '0.7rem', 
                               height: 20,
                               bgcolor: getTourColor(tour, shift.tourColors, tour.id),
-                              color: 'white'
+                              color: getTourTextColor(tour, shift.tourColors, tour.id)
                             }}
                           />
                         ))}
@@ -392,7 +464,7 @@ function ScheduleViewerTab() {
                                 fontSize: '0.7rem', 
                                 height: 20,
                                 bgcolor: getTourColor(tour, shift.tourColors, tour.id),
-                                color: 'white'
+                                color: getTourTextColor(tour, shift.tourColors, tour.id)
                               }}
                             />
                           ))}
