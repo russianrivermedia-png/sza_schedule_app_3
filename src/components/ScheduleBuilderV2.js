@@ -60,7 +60,8 @@ import {
   CheckCircle as CheckCircleIcon,
   LibraryBooks as TemplateIcon,
   MoreVert as MoreVertIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  Groups as GroupsIcon
 } from '@mui/icons-material';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { useData } from '../context/DataContext';
@@ -70,6 +71,7 @@ import { shiftHelpers } from '../lib/supabaseHelpers';
 import DraggableStaff from './DraggableStaff';
 import DroppableRoleTest from './DroppableRoleTest';
 import TourDisplay from './TourDisplay';
+import WorkingStaffDialog from './WorkingStaffDialog';
 import { getTourColorValue } from '../config/tourColors';
 import { getStaffColorValue, getAllStaffColors } from '../config/staffColors';
 
@@ -137,6 +139,7 @@ function ScheduleBuilderV2() {
   // Day template state
   const [openTemplateDialog, setOpenTemplateDialog] = useState(false);
   const [openLoadTemplateDialog, setOpenLoadTemplateDialog] = useState(false);
+  const [openWorkingStaffDialog, setOpenWorkingStaffDialog] = useState(false);
   const [dayTemplates, setDayTemplates] = useState([]);
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -1593,6 +1596,20 @@ function ScheduleBuilderV2() {
           >
             <ChevronRightIcon />
           </Button>
+          
+          <Button
+            variant="contained"
+            size={isMobile ? "small" : "medium"}
+            onClick={() => setOpenWorkingStaffDialog(true)}
+            startIcon={<GroupsIcon />}
+            sx={{ 
+              minWidth: isMobile ? 'auto' : 'auto',
+              fontSize: isMobile ? '0.75rem' : '0.875rem',
+              ml: 1
+            }}
+          >
+            {isMobile ? 'Staff' : 'Working Staff'}
+          </Button>
         </Box>
       </Box>
       
@@ -2315,6 +2332,13 @@ function ScheduleBuilderV2() {
           <Button onClick={() => setOpenLoadTemplateDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Working Staff Dialog */}
+      <WorkingStaffDialog 
+        open={openWorkingStaffDialog}
+        onClose={() => setOpenWorkingStaffDialog(false)}
+        currentWeek={weekKey}
+      />
       </Box>
     </DndProvider>
   );
