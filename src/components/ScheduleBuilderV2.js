@@ -148,6 +148,14 @@ function ScheduleBuilderV2() {
   const [dayActionsMenuAnchor, setDayActionsMenuAnchor] = useState(null);
   const [selectedDayForActions, setSelectedDayForActions] = useState(null);
   
+  // Add role dialog state
+  const [openAddRoleDialog, setOpenAddRoleDialog] = useState(false);
+  const [selectedShiftForAddRole, setSelectedShiftForAddRole] = useState(null);
+  
+  // Shift actions menu state
+  const [shiftActionsMenuAnchor, setShiftActionsMenuAnchor] = useState(null);
+  const [selectedShiftForActions, setSelectedShiftForActions] = useState(null);
+  
   // Test the new hooks
   const {
     localSchedule,
@@ -630,20 +638,16 @@ function ScheduleBuilderV2() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleOpenNotesDialog(day, actualShiftIndex, shift)}
-                            sx={{ mr: 0.5 }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteShift(dayKey, actualShiftIndex)}
-                            sx={{ color: 'error.main' }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <IconButton
+                              size="small"
+                              onClick={(event) => handleShiftActionsMenuOpen(event, shift, day, actualShiftIndex)}
+                              sx={{ color: 'primary.main' }}
+                              title="Shift Actions"
+                            >
+                              <MoreVertIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     </React.Fragment>
@@ -685,16 +689,10 @@ function ScheduleBuilderV2() {
                     <IconButton
                       size="small"
                       sx={{ position: 'absolute', top: 4, right: 4 }}
-                      onClick={() => handleOpenNotesDialog(day, actualShiftIndex, shift)}
+                      onClick={(event) => handleShiftActionsMenuOpen(event, shift, day, actualShiftIndex)}
+                      title="Shift Actions"
                     >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      sx={{ position: 'absolute', top: 4, right: 32, color: 'error.main' }}
-                      onClick={() => handleDeleteShift(dayKey, actualShiftIndex)}
-                    >
-                      <DeleteIcon />
+                      <MoreVertIcon />
                     </IconButton>
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, pr: 6 }}>
@@ -1002,6 +1000,49 @@ function ScheduleBuilderV2() {
     }));
   };
 
+  // Add role to existing shift
+  const addRoleToShift = (dayKey, shiftIndex, roleId) => {
+    updateLocalSchedule(prev => ({
+      ...prev,
+      [dayKey]: {
+        ...prev[dayKey],
+        shifts: prev[dayKey].shifts.map((shift, index) => 
+          index === shiftIndex 
+            ? { 
+                ...shift, 
+                required_roles: [...(shift.required_roles || []), roleId],
+                assignedStaff: {
+                  ...shift.assignedStaff,
+                  [roleId]: undefined // Initialize as unassigned
+                }
+              }
+            : shift
+        )
+      }
+    }));
+  };
+
+  const removeRoleFromShift = (dayKey, shiftIndex, roleId) => {
+    updateLocalSchedule(prev => ({
+      ...prev,
+      [dayKey]: {
+        ...prev[dayKey],
+        shifts: prev[dayKey].shifts.map((shift, index) => 
+          index === shiftIndex 
+            ? { 
+                ...shift, 
+                required_roles: (shift.required_roles || []).filter(id => id !== roleId),
+                assignedStaff: {
+                  ...shift.assignedStaff,
+                  [roleId]: undefined // Remove assignment
+                }
+              }
+            : shift
+        )
+      }
+    }));
+  };
+
   // Tour color change handler
   const handleTourColorChange = (day, shiftIndex, tourId, color) => {
     const dayKey = format(day, 'yyyy-MM-dd');
@@ -1201,19 +1242,56 @@ function ScheduleBuilderV2() {
     handleDayActionsMenuClose();
   };
 
+  // Shift actions menu handlers
+  const handleShiftActionsMenuOpen = (event, shiftData, day, shiftIndex) => {
+    setShiftActionsMenuAnchor(event.currentTarget);
+    setSelectedShiftForActions({ shiftData, day, shiftIndex });
+  };
+
+  const handleShiftActionsMenuClose = () => {
+    setShiftActionsMenuAnchor(null);
+    setSelectedShiftForActions(null);
+  };
+
+  const handleAddRoleFromMenu = () => {
+    if (selectedShiftForActions) {
+      setSelectedShiftForAddRole(selectedShiftForActions);
+      setOpenAddRoleDialog(true);
+    }
+    handleShiftActionsMenuClose();
+  };
+
+  const handleEditNotesFromMenu = () => {
+    if (selectedShiftForActions) {
+      const { shiftData, day, shiftIndex } = selectedShiftForActions;
+      handleOpenNotesDialog(day, shiftIndex, shiftData);
+    }
+    handleShiftActionsMenuClose();
+  };
+
+  const handleDeleteShiftFromMenu = () => {
+    if (selectedShiftForActions) {
+      const { day, shiftIndex } = selectedShiftForActions;
+      const dayKey = format(day, 'yyyy-MM-dd');
+      handleDeleteShift(dayKey, shiftIndex);
+    }
+    handleShiftActionsMenuClose();
+  };
+
   // Staff filtering function for the selection dialog
   const getFilteredAndSortedStaff = (targetRoleId, targetDay) => {
-    // First apply filters
+    // Start with all staff
     let filtered = [...(staff || [])];
     
-    // Filter by role (must be trained for the target role)
-    if (targetRoleId) {
+    // Apply user-controlled filters first
+    // Filter by role (user-controlled filter)
+    if (staffFilterByRole) {
       filtered = filtered.filter(member => 
-        (member.trained_roles || []).includes(targetRoleId)
+        (member.trained_roles || []).includes(staffFilterByRole)
       );
     }
     
-    // Filter by on-call status
+    // Filter by on-call status (user-controlled filter)
     if (staffFilterOnCall) {
       // Show only on-call staff
       filtered = filtered.filter(member => member.on_call);
@@ -1222,36 +1300,7 @@ function ScheduleBuilderV2() {
       filtered = filtered.filter(member => !member.on_call);
     }
     
-    // Filter by days (staff must be available on the target day)
-    if (targetDay && targetDay instanceof Date && !isNaN(targetDay.getTime())) {
-      const dayOfWeek = DAYS_OF_WEEK[targetDay.getDay()];
-      filtered = filtered.filter(member => {
-        // Ensure availability is an array
-        let memberAvailability = member.availability || [];
-        if (typeof memberAvailability === 'string') {
-          try {
-            memberAvailability = JSON.parse(memberAvailability);
-          } catch (e) {
-            console.warn(`Could not parse availability for ${member.name}:`, memberAvailability);
-            memberAvailability = [];
-          }
-        }
-        
-        if (!Array.isArray(memberAvailability)) {
-          memberAvailability = [];
-        }
-        
-        return memberAvailability.includes(dayOfWeek);
-      });
-    }
-    
-    // Apply additional filters from dialog
-    if (staffFilterByRole) {
-      filtered = filtered.filter(member => 
-        (member.trained_roles || []).includes(staffFilterByRole)
-      );
-    }
-    
+    // Filter by days (user-controlled filter)
     if (staffFilterByDays.length > 0) {
       filtered = filtered.filter(member => {
         // Ensure availability is an array
@@ -1301,9 +1350,17 @@ function ScheduleBuilderV2() {
     setSelectedRoleId(roleId);
     setOpenStaffSelectionDialog(true);
     
-    // Reset filters to show all available staff for this role/day
-    setStaffFilterByRole('');
-    setStaffFilterByDays([]);
+    // Set default filters based on the target role and day, but allow user to change them
+    if (roleId) {
+      setStaffFilterByRole(roleId); // Default to the target role
+    }
+    
+    if (day && day instanceof Date && !isNaN(day.getTime())) {
+      const dayOfWeek = DAYS_OF_WEEK[day.getDay()];
+      setStaffFilterByDays([dayOfWeek]); // Default to the target day
+    }
+    
+    // Keep other filters as they are (on-call status, etc.)
   };
 
   // Handle staff selection from dialog
@@ -1800,6 +1857,45 @@ function ScheduleBuilderV2() {
           <ListItemText>Load Template</ListItemText>
         </MenuItem>
       </Menu>
+
+      {/* Shift Actions Dropdown Menu */}
+      <Menu
+        anchorEl={shiftActionsMenuAnchor}
+        open={Boolean(shiftActionsMenuAnchor)}
+        onClose={handleShiftActionsMenuClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <MenuItem onClick={handleAddRoleFromMenu}>
+          <ListItemIcon>
+            <AddIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Add Role</ListItemText>
+        </MenuItem>
+        
+        <MenuItem onClick={handleEditNotesFromMenu}>
+          <ListItemIcon>
+            <EditIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Edit Notes</ListItemText>
+        </MenuItem>
+        
+        <MenuItem 
+          onClick={handleDeleteShiftFromMenu}
+          sx={{ color: 'error.main' }}
+        >
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText>Delete Shift</ListItemText>
+        </MenuItem>
+      </Menu>
       
       {/* Add Shifts Dialog */}
       <Dialog 
@@ -1808,7 +1904,7 @@ function ScheduleBuilderV2() {
           setOpenShiftDialog(false);
           setSelectedShifts([]);
         }} 
-        maxWidth="md" 
+        maxWidth="lg" 
         fullWidth
       >
         <DialogTitle>
@@ -1825,44 +1921,44 @@ function ScheduleBuilderV2() {
               </Typography>
             </Alert>
             
-            {(shifts || [])
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map(shift => (
-              <Box
-                key={shift.id}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  p: 1,
-                  border: '1px solid',
-                  borderColor: selectedShifts.includes(shift.id) ? 'primary.main' : 'divider',
-                  borderRadius: 1,
-                  mb: 1,
-                  cursor: 'pointer',
-                  bgcolor: selectedShifts.includes(shift.id) ? 'primary.50' : 'background.paper',
-                  '&:hover': {
-                    bgcolor: selectedShifts.includes(shift.id) ? 'primary.100' : 'grey.50',
-                  }
-                }}
-                onClick={() => handleShiftSelection(shift.id)}
-              >
-                <Box sx={{ mr: 2 }}>
-                  {selectedShifts.includes(shift.id) ? (
-                    <Typography color="primary">✓</Typography>
-                  ) : (
-                    <Typography color="text.secondary">○</Typography>
-                  )}
-                </Box>
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="body1" fontWeight="medium">
-                    {shift.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {shift.description || 'No description available'}
-                  </Typography>
-                </Box>
-              </Box>
-            ))}
+            <Grid container spacing={1.5}>
+              {(shifts || [])
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(shift => (
+                <Grid item xs={12} sm={6} md={4} key={shift.id}>
+                  <Card
+                    sx={{
+                      cursor: 'pointer',
+                      border: '2px solid',
+                      borderColor: selectedShifts.includes(shift.id) ? 'primary.main' : 'divider',
+                      bgcolor: selectedShifts.includes(shift.id) ? 'primary.50' : 'background.paper',
+                      '&:hover': {
+                        bgcolor: selectedShifts.includes(shift.id) ? 'primary.100' : 'grey.50',
+                        borderColor: selectedShifts.includes(shift.id) ? 'primary.dark' : 'primary.light',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}
+                    onClick={() => handleShiftSelection(shift.id)}
+                  >
+                    <CardContent sx={{ flexGrow: 1, py: 1, px: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Typography variant="h6" fontWeight="medium" sx={{ flexGrow: 1, pr: 1 }}>
+                        {shift.name}
+                      </Typography>
+                      <Box sx={{ ml: 1, flexShrink: 0 }}>
+                        {selectedShifts.includes(shift.id) ? (
+                          <Typography color="primary" sx={{ fontSize: '1.2rem' }}>✓</Typography>
+                        ) : (
+                          <Typography color="text.secondary" sx={{ fontSize: '1.2rem' }}>○</Typography>
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -2095,6 +2191,9 @@ function ScheduleBuilderV2() {
           <Typography variant="body2" color="text.secondary">
             {selectedDay && format(selectedDay, 'EEEE, MMMM d')}
           </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Filters are set to show qualified staff by default. Use the filter controls below to see all staff or adjust criteria.
+          </Typography>
         </DialogTitle>
         <DialogContent sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ pt: 1, flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -2205,7 +2304,8 @@ function ScheduleBuilderV2() {
             {/* Staff List */}
             <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
               {getFilteredAndSortedStaff(selectedRoleId, selectedDay).map((staffMember) => {
-                const conflicts = selectedDay ? getStaffConflicts(staffMember.id, selectedDay, selectedRoleId) : [];
+                // Check for conflicts based on the original target role and day
+                const conflicts = selectedDay && selectedRoleId ? getStaffConflicts(staffMember.id, selectedDay, selectedRoleId) : [];
                 const hasConflicts = conflicts.length > 0;
                 
                 return (
@@ -2339,6 +2439,82 @@ function ScheduleBuilderV2() {
         onClose={() => setOpenWorkingStaffDialog(false)}
         currentWeek={weekKey}
       />
+
+      {/* Add Role Dialog */}
+      <Dialog 
+        open={openAddRoleDialog} 
+        onClose={() => setOpenAddRoleDialog(false)} 
+        maxWidth="sm" 
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6">
+            Add Role to {selectedShiftForAddRole?.shift?.name}
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                Select a role to add to this shift. The role will appear as unassigned and you can then assign staff to it.
+              </Typography>
+            </Alert>
+            
+            {(roles || [])
+              .filter(role => !selectedShiftForAddRole?.shift?.required_roles?.includes(role.id))
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(role => (
+              <Box
+                key={role.id}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  p: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  mb: 1,
+                  cursor: 'pointer',
+                  bgcolor: 'background.paper',
+                  '&:hover': {
+                    bgcolor: 'grey.50',
+                  }
+                }}
+                onClick={() => {
+                  const dayKey = format(selectedShiftForAddRole.day, 'yyyy-MM-dd');
+                  addRoleToShift(dayKey, selectedShiftForAddRole.shiftIndex, role.id);
+                  setOpenAddRoleDialog(false);
+                }}
+              >
+                <Box sx={{ mr: 2 }}>
+                  <Typography color="text.secondary">+</Typography>
+                </Box>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="body1" fontWeight="medium">
+                    {role.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {role.description || 'No description available'}
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
+            
+            {roles?.filter(role => !selectedShiftForAddRole?.shift?.required_roles?.includes(role.id)).length === 0 && (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography color="text.secondary">
+                  All available roles are already assigned to this shift.
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenAddRoleDialog(false)}>
+            Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
       </Box>
     </DndProvider>
   );

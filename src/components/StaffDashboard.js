@@ -613,24 +613,25 @@ function StaffDashboard() {
     });
   };
 
-  const getNext7DaysShifts = () => {
+  const getNext14DaysShifts = () => {
     // Safety check - return empty array if required data is not loaded
     if (!schedules || !shifts || !roles || !staffMember) {
       return [];
     }
     
     const today = new Date();
-    const next7Days = [];
+    const next14Days = [];
     
-    // Generate next 7 days
-    for (let i = 0; i < 7; i++) {
+    // Generate next 14 days (2 weeks)
+    for (let i = 0; i < 14; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
-      next7Days.push({
+      next14Days.push({
         date: date,
         dayName: format(date, 'EEEE'), // Monday, Tuesday, etc.
         dateString: format(date, 'yyyy-MM-dd'),
-        shifts: []
+        shifts: [],
+        weekNumber: Math.floor(i / 7) // 0 for first week, 1 for second week
       });
     }
     
@@ -655,8 +656,8 @@ function StaffDashboard() {
               const shouldIncludeShift = assignedRoleId || isTeamEvent;
               
               if (shouldIncludeShift) {
-                // Find the matching day in our next 7 days
-                const dayInfo = next7Days.find(day => day.dateString === dayKey);
+                // Find the matching day in our next 14 days
+                const dayInfo = next14Days.find(day => day.dateString === dayKey);
                 if (dayInfo) {
                   // Check if this shift is already added to avoid duplicates
                   const shiftAlreadyExists = dayInfo.shifts.some(existingShift => 
@@ -697,7 +698,7 @@ function StaffDashboard() {
     });
     
     // Filter out days with no shifts and return
-    return next7Days.filter(day => day.shifts.length > 0);
+    return next14Days.filter(day => day.shifts.length > 0);
   };
 
   const getAvailabilityStatus = () => {
@@ -766,7 +767,7 @@ function StaffDashboard() {
   }
 
   const availabilityStatus = getAvailabilityStatus();
-  const next7DaysShifts = getNext7DaysShifts();
+  const next14DaysShifts = getNext14DaysShifts();
 
   return (
     <Box>
@@ -934,84 +935,178 @@ function StaffDashboard() {
             <CardContent>
               <Typography variant={isMobile ? "subtitle1" : "h6"} gutterBottom>
                 <EventIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                {isMobile ? "Upcoming Shifts" : "Upcoming Shifts (Next 7 Days)"}
+                {isMobile ? "Upcoming Shifts" : "Upcoming Shifts (Next 2 Weeks)"}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: isMobile ? 'center' : 'left' }}>
-                {isMobile ? "Next 7 days" : "Your scheduled shifts for the next 7 days"}
+                {isMobile ? "Next 2 weeks" : "Your scheduled shifts for the next 2 weeks"}
               </Typography>
               
-              {next7DaysShifts.length > 0 ? (
-                <Grid container spacing={isMobile ? 1 : 2}>
-                  {next7DaysShifts.map((dayInfo, index) => (
-                    <Grid item xs={12} sm={6} md={4} key={index}>
-                      <Box sx={{ 
-                        p: isMobile ? 1.5 : 2, 
-                        border: '1px solid #e0e0e0', 
-                        borderRadius: 1,
-                        bgcolor: 'background.paper'
-                      }}>
-                        <Typography variant={isMobile ? "body2" : "subtitle2"} gutterBottom sx={{ fontWeight: 'medium' }}>
-                          {dayInfo.dayName}, {format(dayInfo.date, 'MMM dd')}
-                        </Typography>
-                        {dayInfo.shifts.map((shift, shiftIndex) => (
-                          <Box key={shiftIndex} sx={{ mb: isMobile ? 0.5 : 1 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
-                              <Box sx={{ flex: 1 }}>
-                                <Typography variant={isMobile ? "caption" : "body2"} sx={{ fontWeight: 'medium' }}>
-                                  {shift.shiftName}
+              {next14DaysShifts.length > 0 ? (
+                <Box>
+                  {/* First Week */}
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" color="primary" sx={{ mb: 2, fontWeight: 'bold' }}>
+                      This Week ({format(new Date(), 'MMM dd')} - {format(addDays(new Date(), 6), 'MMM dd')})
+                    </Typography>
+                    <Grid container spacing={isMobile ? 1 : 2}>
+                      {next14DaysShifts
+                        .filter(day => day.weekNumber === 0)
+                        .map((dayInfo, index) => (
+                        <Grid item xs={12} sm={6} md={4} key={index}>
+                          <Box sx={{ 
+                            p: isMobile ? 1.5 : 2, 
+                            border: '1px solid #e0e0e0', 
+                            borderRadius: 1,
+                            bgcolor: 'background.paper'
+                          }}>
+                            <Typography variant={isMobile ? "body2" : "subtitle2"} gutterBottom sx={{ fontWeight: 'medium' }}>
+                              {dayInfo.dayName}, {format(dayInfo.date, 'MMM dd')}
                             </Typography>
-                                <Typography variant={isMobile ? "caption" : "body2"} color="primary" sx={{ display: 'block' }}>
-                                  {shift.role}
-                                </Typography>
-                                {shift.isTeamEvent && (
-                                  <Chip
-                                    label="Team Event"
-                                    size="small"
-                                    color="primary"
-                                    variant="outlined"
-                                    sx={{ fontSize: '0.6rem', height: 16, mt: 0.5 }}
-                                  />
-                                )}
-                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: isMobile ? '0.65rem' : '0.75rem' }}>
-                                  {shift.start_time}
-                            </Typography>
+                            {dayInfo.shifts.map((shift, shiftIndex) => (
+                              <Box key={shiftIndex} sx={{ mb: isMobile ? 0.5 : 1 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
+                                  <Box sx={{ flex: 1 }}>
+                                    <Typography variant={isMobile ? "caption" : "body2"} sx={{ fontWeight: 'medium' }}>
+                                      {shift.shiftName}
+                                    </Typography>
+                                    <Typography variant={isMobile ? "caption" : "body2"} color="primary" sx={{ display: 'block' }}>
+                                      {shift.role}
+                                    </Typography>
+                                    {shift.isTeamEvent && (
+                                      <Chip
+                                        label="Team Event"
+                                        size="small"
+                                        color="primary"
+                                        variant="outlined"
+                                        sx={{ fontSize: '0.6rem', height: 16, mt: 0.5 }}
+                                      />
+                                    )}
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: isMobile ? '0.65rem' : '0.75rem' }}>
+                                      {shift.start_time}
+                                    </Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleSwapClick(shift, dayInfo)}
+                                      sx={{ 
+                                        p: 0.5,
+                                        color: 'primary.main',
+                                        '&:hover': { bgcolor: 'primary.light', color: 'white' }
+                                      }}
+                                      title="Request Swap"
+                                    >
+                                      <SwapIcon sx={{ fontSize: isMobile ? '0.8rem' : '1rem' }} />
+                                    </IconButton>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleCoverClick(shift, dayInfo)}
+                                      sx={{ 
+                                        p: 0.5,
+                                        color: 'warning.main',
+                                        '&:hover': { bgcolor: 'warning.light', color: 'white' }
+                                      }}
+                                      title="Request Coverage"
+                                    >
+                                      <CoverIcon sx={{ fontSize: isMobile ? '0.8rem' : '1rem' }} />
+                                    </IconButton>
+                                  </Box>
+                                </Box>
                               </Box>
-                              <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleSwapClick(shift, dayInfo)}
-                                  sx={{ 
-                                    p: 0.5,
-                                    color: 'primary.main',
-                                    '&:hover': { bgcolor: 'primary.light', color: 'white' }
-                                  }}
-                                  title="Request Swap"
-                                >
-                                  <SwapIcon sx={{ fontSize: isMobile ? '0.8rem' : '1rem' }} />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleCoverClick(shift, dayInfo)}
-                                  sx={{ 
-                                    p: 0.5,
-                                    color: 'warning.main',
-                                    '&:hover': { bgcolor: 'warning.light', color: 'white' }
-                                  }}
-                                  title="Request Coverage"
-                                >
-                                  <CoverIcon sx={{ fontSize: isMobile ? '0.8rem' : '1rem' }} />
-                                </IconButton>
-                              </Box>
-                            </Box>
+                            ))}
                           </Box>
-                        ))}
-                      </Box>
+                        </Grid>
+                      ))}
                     </Grid>
-                  ))}
-                </Grid>
+                  </Box>
+
+                  {/* Divider between weeks */}
+                  <Divider sx={{ my: 3 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ px: 2, bgcolor: 'background.paper' }}>
+                      Next Week
+                    </Typography>
+                  </Divider>
+
+                  {/* Second Week */}
+                  <Box>
+                    <Typography variant="subtitle2" color="primary" sx={{ mb: 2, fontWeight: 'bold' }}>
+                      Next Week ({format(addDays(new Date(), 7), 'MMM dd')} - {format(addDays(new Date(), 13), 'MMM dd')})
+                    </Typography>
+                    <Grid container spacing={isMobile ? 1 : 2}>
+                      {next14DaysShifts
+                        .filter(day => day.weekNumber === 1)
+                        .map((dayInfo, index) => (
+                        <Grid item xs={12} sm={6} md={4} key={index}>
+                          <Box sx={{ 
+                            p: isMobile ? 1.5 : 2, 
+                            border: '1px solid #e0e0e0', 
+                            borderRadius: 1,
+                            bgcolor: 'background.paper'
+                          }}>
+                            <Typography variant={isMobile ? "body2" : "subtitle2"} gutterBottom sx={{ fontWeight: 'medium' }}>
+                              {dayInfo.dayName}, {format(dayInfo.date, 'MMM dd')}
+                            </Typography>
+                            {dayInfo.shifts.map((shift, shiftIndex) => (
+                              <Box key={shiftIndex} sx={{ mb: isMobile ? 0.5 : 1 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
+                                  <Box sx={{ flex: 1 }}>
+                                    <Typography variant={isMobile ? "caption" : "body2"} sx={{ fontWeight: 'medium' }}>
+                                      {shift.shiftName}
+                                    </Typography>
+                                    <Typography variant={isMobile ? "caption" : "body2"} color="primary" sx={{ display: 'block' }}>
+                                      {shift.role}
+                                    </Typography>
+                                    {shift.isTeamEvent && (
+                                      <Chip
+                                        label="Team Event"
+                                        size="small"
+                                        color="primary"
+                                        variant="outlined"
+                                        sx={{ fontSize: '0.6rem', height: 16, mt: 0.5 }}
+                                      />
+                                    )}
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: isMobile ? '0.65rem' : '0.75rem' }}>
+                                      {shift.start_time}
+                                    </Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleSwapClick(shift, dayInfo)}
+                                      sx={{ 
+                                        p: 0.5,
+                                        color: 'primary.main',
+                                        '&:hover': { bgcolor: 'primary.light', color: 'white' }
+                                      }}
+                                      title="Request Swap"
+                                    >
+                                      <SwapIcon sx={{ fontSize: isMobile ? '0.8rem' : '1rem' }} />
+                                    </IconButton>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleCoverClick(shift, dayInfo)}
+                                      sx={{ 
+                                        p: 0.5,
+                                        color: 'warning.main',
+                                        '&:hover': { bgcolor: 'warning.light', color: 'white' }
+                                      }}
+                                      title="Request Coverage"
+                                    >
+                                      <CoverIcon sx={{ fontSize: isMobile ? '0.8rem' : '1rem' }} />
+                                    </IconButton>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            ))}
+                          </Box>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </Box>
+                </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  No shifts scheduled for the next 7 days
+                  No shifts scheduled for the next 2 weeks
                 </Typography>
               )}
             </CardContent>
